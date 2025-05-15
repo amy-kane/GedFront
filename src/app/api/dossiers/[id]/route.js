@@ -7,7 +7,7 @@ const API_URL = process.env.API_BASE_URL || 'http://localhost:8081';
 // Gestion des requêtes GET pour /api/dossiers/[id]
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    const id = params.id.toString();
     const authHeader = request.headers.get('authorization');
     
     const response = await axios.get(`${API_URL}/api/dossiers/${id}`, {

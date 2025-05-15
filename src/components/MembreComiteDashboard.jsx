@@ -2,6 +2,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import CommentairesSection from '../components/CommentairesSection';
 
 const MembreComiteDashboard = () => {
   const [dossiers, setDossiers] = useState([]);
@@ -141,66 +142,43 @@ const MembreComiteDashboard = () => {
     }
   };
 
-  const fetchDossiers = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      // Récupérer les dossiers COMPLET
-      const completResponse = await axios.get('/api/dossiers', {
-        params: { statut: 'COMPLET' },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      // Récupérer les dossiers EN_COURS
-      const enCoursResponse = await axios.get('/api/dossiers', {
-        params: { statut: 'EN_COURS' },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      // Fonction pour extraire les dossiers
-      const extractDossiers = (response) => {
-        if (response.data && Array.isArray(response.data)) {
-          return response.data;
-        } else if (response.data && response.data.content && Array.isArray(response.data.content)) {
-          return response.data.content;
-        }
-        return [];
-      };
-      
-      // Extraire tous les dossiers
-      const completDossiers = extractDossiers(completResponse);
-      const enCoursDossiers = extractDossiers(enCoursResponse);
-      
-      // Ajouter une propriété pour identifier le statut 
-      const taggedCompletDossiers = completDossiers.map(d => ({ ...d, listType: 'COMPLET' }));
-      const taggedEnCoursDossiers = enCoursDossiers.map(d => ({ ...d, listType: 'EN_COURS' }));
-      
-      // Fusionner les listes et dédupliquer par ID
-      const allDossiers = [...taggedCompletDossiers, ...taggedEnCoursDossiers];
-      
-      // Utiliser un Map pour dédupliquer par ID
-      const uniqueDossiersMap = new Map();
-      allDossiers.forEach(dossier => {
-        // On ne remplace un dossier existant que si le nouveau a un statut plus récent
-        // (EN_COURS est considéré plus récent que COMPLET)
-        if (!uniqueDossiersMap.has(dossier.id) || 
-            (dossier.listType === 'EN_COURS' && uniqueDossiersMap.get(dossier.id).listType === 'COMPLET')) {
-          uniqueDossiersMap.set(dossier.id, dossier);
-        }
-      });
-      
-      // Convertir le Map en tableau
-      const uniqueDossiers = Array.from(uniqueDossiersMap.values());
-      
-      console.log("Nombre de dossiers après déduplication:", uniqueDossiers.length);
-      setDossiers(uniqueDossiers);
-      setLoading(false);
-    } catch (error) {
-      console.error("Erreur lors de la récupération des dossiers:", error);
-      setLoading(false);
-    }
-  };
+  // Dans la fonction fetchDossiers() de MembreComiteDashboard.jsx
+
+const fetchDossiers = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    // Récupérer uniquement les dossiers EN_COURS
+    const enCoursResponse = await axios.get('/api/dossiers', {
+      params: { statut: 'EN_COURS' },
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    // Fonction pour extraire les dossiers
+    const extractDossiers = (response) => {
+      if (response.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data && response.data.content && Array.isArray(response.data.content)) {
+        return response.data.content;
+      }
+      return [];
+    };
+    
+    // Extraire les dossiers EN_COURS
+    const enCoursDossiers = extractDossiers(enCoursResponse);
+    
+    // Ajouter une propriété pour identifier visuellement les dossiers
+    const taggedEnCoursDossiers = enCoursDossiers.map(d => ({ ...d, listType: 'EN_COURS' }));
+    
+    // Utiliser uniquement les dossiers EN_COURS
+    setDossiers(taggedEnCoursDossiers);
+    setLoading(false);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des dossiers:", error);
+    setLoading(false);
+  }
+};
 
   const consulterDossier = async (dossierId) => {
     try {
@@ -300,34 +278,36 @@ const MembreComiteDashboard = () => {
   };
 
   const ajouterCommentaire = async () => {
-    try {
-      if (!newComment.trim()) {
-        alert("Veuillez saisir un commentaire");
-        return;
-      }
-      
-      const token = localStorage.getItem('token');
-      
-      const response = await axios.post(`/api/commentaires`, null, {
-        params: {
-          dossierId: selectedDossier.id,
-          contenu: newComment
-        },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      // Ajouter le nouveau commentaire à la liste
-      setCommentaires([...commentaires, response.data]);
-      
-      // Réinitialiser le champ de saisie
-      setNewComment('');
-      
-      alert("Commentaire ajouté avec succès");
-    } catch (error) {
-      console.error("Erreur lors de l'ajout du commentaire:", error);
-      alert("Erreur lors de l'ajout du commentaire: " + (error.response?.data?.message || error.message));
+  try {
+    if (!newComment.trim()) {
+      alert("Veuillez saisir un commentaire");
+      return;
     }
-  };
+    
+    const token = localStorage.getItem('token');
+    
+    const response = await axios.post(`/api/commentaires`, null, {
+      params: {
+        dossierId: selectedDossier.id,
+        contenu: newComment
+      },
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    // Rafraîchir les commentaires après ajout
+    const commentairesResponse = await axios.get(`/api/commentaires/dossier/${selectedDossier.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    setCommentaires(commentairesResponse.data.content || commentairesResponse.data);
+    
+    // Réinitialiser le champ de saisie
+    setNewComment('');
+  } catch (error) {
+    console.error("Erreur lors de l'ajout du commentaire:", error);
+    alert("Erreur lors de l'ajout du commentaire: " + (error.response?.data?.message || error.message));
+  }
+};
 
   const submitVote = async () => {
     try {
@@ -404,7 +384,7 @@ const MembreComiteDashboard = () => {
       </div>
       
       {/* Titre principal */}
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Dossiers à évaluer</h2>
+      <h2 className="text-xl font-semibold text-gray-800 mb-4">Dossiers en cours d'évaluation</h2>
       
       {/* Dossiers Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
@@ -604,51 +584,17 @@ const MembreComiteDashboard = () => {
           </div>
           
           {/* Commentaires */}
-          <div className="mb-6">
-            <h4 className="text-md font-medium text-gray-900 mb-2">Commentaires</h4>
-            
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              {commentaires.length === 0 ? (
-                <p className="text-gray-500">Aucun commentaire sur ce dossier</p>
-              ) : (
-                <ul className="space-y-4">
-                  {commentaires.map((commentaire) => (
-                    <li key={commentaire.id} className="bg-white p-3 rounded-md shadow-sm">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-sm font-medium">{commentaire.utilisateur?.prenom} {commentaire.utilisateur?.nom}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(commentaire.dateCreation).toLocaleDateString()} à {new Date(commentaire.dateCreation).toLocaleTimeString()}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-700">{commentaire.contenu}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            
-            {/* Formulaire d'ajout de commentaire */}
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <h5 className="text-sm font-medium mb-2">Ajouter un commentaire</h5>
-              <textarea 
-                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                rows="3"
-                placeholder="Votre commentaire..."
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-              ></textarea>
-              <div className="mt-2 flex justify-end">
-                <button 
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                  onClick={ajouterCommentaire}
-                >
-                  Commenter
-                </button>
-              </div>
-            </div>
-          </div>
+          
+        <div className="mb-6">
+          <CommentairesSection 
+            dossierId={selectedDossier.id}
+            userRole="MEMBRE_COMITE"
+            onCommentAdded={(newComment) => {
+              // Si vous souhaitez mettre à jour un compteur ou autre
+              console.log("Nouveau commentaire ajouté:", newComment);
+            }}
+          />
+        </div>
         </div>
       )}
       

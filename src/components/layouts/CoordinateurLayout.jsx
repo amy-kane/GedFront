@@ -15,6 +15,7 @@ const CoordinateurLayout = ({ children }) => {
   const navigateToVotes = () => router.push('/coordinateur/votes');
   const navigateToProfile = () => router.push('/coordinateur/profile');
   const navigateToNotifications = () => router.push('/coordinateur/notifications');
+  const navigateToDiscussions = () => router.push('/coordinateur/discussions');
 
   // Déterminer quelle page est active
   const isActive = (path) => {
@@ -42,6 +43,12 @@ const CoordinateurLayout = ({ children }) => {
               text="Phases" 
               active={isActive('/coordinateur/phases')}
               onClick={navigateToPhases}
+            />
+             <NavItem 
+              icon={<DiscussionIcon />} 
+              text="Discussions" 
+              active={isActive('/coordinateur/discussions')}
+              onClick={navigateToDiscussions}
             />
             <NavItem 
               icon={<VoteIcon />} 
