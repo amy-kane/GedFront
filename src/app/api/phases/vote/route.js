@@ -1,11 +1,10 @@
-// app/api/phases/vote/route.js
+// app/api/phases/votes/route.js
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 
 const API_URL = process.env.API_BASE_URL || 'http://localhost:8081';
 
-// Gestion des requêtes POST pour /api/phases/vote
-export async function POST(request) {
+export async function GET(request) {
   try {
     // Récupérer le token d'autorisation
     const authHeader = request.headers.get('authorization');
@@ -14,55 +13,56 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
     }
     
-    // Récupérer les paramètres de l'URL
-    const url = new URL(request.url);
-    const dossierId = url.searchParams.get('dossierId');
-    const description = url.searchParams.get('description');
+    console.log('Récupération de toutes les phases de vote');
     
-    if (!dossierId) {
-      return NextResponse.json({ error: 'ID du dossier manquant' }, { status: 400 });
-    }
-    
-    console.log(`Création d'une phase de vote pour le dossier ${dossierId}`);
-    
-    // Appeler l'API backend
-    const response = await axios.post(
-      `${API_URL}/api/phases/vote`,
-      null,
-      {
-        params: {
-          dossierId: dossierId,
-          description: description
-        },
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json'
+    // Récupérer d'abord tous les dossiers en cours d'évaluation
+    try {
+      const dossiersResponse = await axios.get(`${API_URL}/api/dossiers`, {
+        params: { statut: 'EN_COURS' },
+        headers: { 'Authorization': authHeader }
+      });
+      
+      const dossiers = Array.isArray(dossiersResponse.data)
+        ? dossiersResponse.data
+        : (dossiersResponse.data.content || []);
+      
+      console.log(`${dossiers.length} dossiers trouvés`);
+      
+      // Pour chaque dossier, récupérer ses phases
+      let allVotePhases = [];
+      
+      for (const dossier of dossiers.slice(0, 10)) {
+        try {
+          const phasesResponse = await axios.get(`${API_URL}/api/phases/dossier/${dossier.id}`, {
+            headers: { 'Authorization': authHeader }
+          });
+          
+          const phases = Array.isArray(phasesResponse.data)
+            ? phasesResponse.data.filter(phase => phase.type === 'VOTE')
+            : [];
+          
+          // Enrichir les phases avec les informations du dossier
+          const enrichedPhases = phases.map(phase => ({
+            ...phase,
+            dossier: dossier
+          }));
+          
+          allVotePhases = [...allVotePhases, ...enrichedPhases];
+        } catch (phaseErr) {
+          console.warn(`Impossible de récupérer les phases pour le dossier ${dossier.id}:`, phaseErr);
         }
       }
-    );
-    
-    return NextResponse.json(response.data);
+      
+      return NextResponse.json(allVotePhases);
+    } catch (apiError) {
+      console.error("Erreur API:", apiError);
+      throw apiError;
+    }
   } catch (error) {
-    console.error("Erreur lors de la création de la phase de vote:", error);
-    
-    // Gestion des erreurs spécifiques
-    if (error.response?.status === 403) {
-      return NextResponse.json(
-        { message: 'Vous n\'avez pas les droits pour initier une phase de vote' },
-        { status: 403 }
-      );
-    }
-    
-    if (error.response?.status === 400) {
-      return NextResponse.json(
-        { message: error.response.data.message || 'Paramètres invalides' },
-        { status: 400 }
-      );
-    }
-    
+    console.error("Erreur générale:", error);
     return NextResponse.json(
-      { message: error.response?.data?.message || 'Erreur serveur' },
-      { status: error.response?.status || 500 }
+      { message: 'Erreur lors de la récupération des phases de vote' },
+      { status: 500 }
     );
   }
 }

@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const API_URL = process.env.API_BASE_URL || 'http://localhost:8081';
 
-// Gestion des requêtes GET pour récupérer le vote de l'utilisateur pour une phase
+// Gestion des requêtes GET pour /api/votes/phase/[phaseId]/mon-vote
 export async function GET(request, { params }) {
   try {
     const { phaseId } = params;
@@ -16,33 +16,52 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
     }
     
-    console.log(`Récupération du vote de l'utilisateur pour la phase ${phaseId}`);
+    console.log(`Récupération de mon vote pour la phase ${phaseId}`);
     
     // Appeler l'API backend
-    const response = await axios.get(
-      `${API_URL}/api/votes/phase/${phaseId}/mon-vote`,
-      {
-        headers: {
-          'Authorization': authHeader
-        }
+    try {
+      const response = await axios.get(`${API_URL}/api/votes/phase/${phaseId}/mon-vote`, {
+        headers: { 'Authorization': authHeader }
+      });
+      
+      return NextResponse.json(response.data);
+    } catch (apiError) {
+      // Si 404, c'est normal (pas de vote trouvé)
+      if (apiError.response?.status === 404) {
+        return NextResponse.json(null, { status: 404 });
       }
-    );
-    
-    return NextResponse.json(response.data);
-  } catch (error) {
-    console.error(`Erreur lors de la récupération du vote pour la phase ${params.phaseId}:`, error);
-    
-    // Si l'utilisateur n'a pas encore voté, c'est normal
-    if (error.response?.status === 404) {
+      
+      console.error("Erreur API lors de la récupération de mon vote:", apiError);
+      
+      // En développement, on peut simuler un vote aléatoirement
+      if (process.env.NODE_ENV === 'development' && Math.random() > 0.7) {
+        const decisions = ['FAVORABLE', 'DEFAVORABLE', 'COMPLEMENT_REQUIS'];
+        return NextResponse.json({
+          id: 999,
+          decision: decisions[Math.floor(Math.random() * decisions.length)],
+          commentaire: "Mon vote simulé",
+          dateCreation: new Date().toISOString(),
+          utilisateur: {
+            id: 1,
+            nom: "Coordinateur",
+            prenom: "Test",
+            role: "COORDINATEUR"
+          },
+          phase: { id: parseInt(phaseId) }
+        });
+      }
+      
       return NextResponse.json(
-        { message: 'Aucun vote trouvé pour cette phase' },
-        { status: 404 }
+        { message: apiError.response?.data?.message || 'Erreur lors de la récupération de mon vote' },
+        { status: apiError.response?.status || 500 }
       );
     }
+  } catch (error) {
+    console.error("Erreur lors de la récupération de mon vote:", error);
     
     return NextResponse.json(
-      { message: error.response?.data?.message || 'Erreur serveur' },
-      { status: error.response?.status || 500 }
+      { message: 'Erreur lors de la récupération de mon vote' },
+      { status: 500 }
     );
   }
 }
