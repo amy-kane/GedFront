@@ -1,5 +1,4 @@
-// Components/CommentairesSection.jsx
-
+// components/CommentairesSection.jsx - Version simplifiée et robuste pour éviter les problèmes
 import React, { useState, useEffect } from 'react';
 import CommentaireItem from './CommentaireItem';
 import axios from 'axios';
@@ -10,81 +9,89 @@ const CommentairesSection = ({ dossierId, userRole }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Charger les commentaires depuis l'API
-  const fetchCommentaires = async () => {
-    if (!dossierId) return;
-
-    try {
-      setLoading(true);
-      // Récupérer le token d'authentification
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('Authentification requise');
-      }
-      
-      console.log(`Chargement des commentaires pour le dossier ${dossierId}`);
-      
-      // Essayer d'abord l'endpoint standard
-      let response;
-      try {
-        response = await axios.get(`/api/commentaires/dossier/${dossierId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        console.log('Commentaires récupérés via l\'endpoint standard');
-      } catch (err) {
-        // Si l'endpoint standard échoue, essayer l'endpoint public
-        console.log('Échec de l\'endpoint standard, tentative avec l\'endpoint public');
-        response = await axios.get(`/api/commentaires/dossier/${dossierId}/public`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        console.log('Commentaires récupérés via l\'endpoint public');
-      }
-      
-      // Extraire les commentaires selon la structure de la réponse
-      const commentairesData = response.data.content || response.data;
-      console.log(`${commentairesData.length} commentaires récupérés`);
-      
-      // Afficher le premier commentaire pour débogage
-      if (commentairesData.length > 0) {
-        console.log('Premier commentaire:', {
-          id: commentairesData[0].id,
-          contenu: commentairesData[0].contenu,
-          utilisateur: commentairesData[0].utilisateur
-        });
-      }
-      
-      setCommentaires(commentairesData);
-      setError(null);
-    } catch (err) {
-      console.error("Erreur lors du chargement des commentaires:", err);
-      setError("Impossible de charger les commentaires. Veuillez réessayer plus tard.");
-      
-      // En mode développement, utiliser des données statiques
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Utilisation de données statiques en développement suite à une erreur');
-        setCommentaires(getStaticCommentaires());
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Charger les commentaires au montage et quand dossierId change
+  // Charger les commentaires une seule fois au montage
   useEffect(() => {
+    // Vérifier la validité du dossierId
+    if (!dossierId || dossierId <= 0) {
+      console.error(`CommentairesSection reçoit un dossierId invalide: ${dossierId}`);
+      setError("Identifiant de dossier invalide");
+      setLoading(false);
+      return;
+    }
+    
+    // Définir un flag pour éviter les mises à jour après démontage
+    let isMounted = true;
+    
+    // Fonction asynchrone pour charger les commentaires
+    const fetchCommentaires = async () => {
+      try {
+        console.log(`Chargement des commentaires pour le dossier ${dossierId}`);
+        
+        // Récupérer le token d'authentification
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('Authentification requise');
+        }
+        
+        // Faire la requête à l'API
+        const response = await axios.get(`/api/commentaires/dossier/${dossierId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        // Traiter les données uniquement si le composant est toujours monté
+        if (isMounted) {
+          // S'assurer que response.data est un tableau
+          const commentairesData = Array.isArray(response.data) 
+            ? response.data 
+            : Array.isArray(response.data.content) 
+              ? response.data.content 
+              : [];
+              
+          console.log(`${commentairesData.length} commentaires récupérés`);
+          
+          setCommentaires(commentairesData);
+          setError(null);
+        }
+      } catch (err) {
+        console.error(`Erreur lors du chargement des commentaires:`, err);
+        
+        // Mettre à jour l'état uniquement si le composant est toujours monté
+        if (isMounted) {
+          setError("Impossible de charger les commentaires");
+          
+          // En mode développement, utiliser des données simulées
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Données simulées utilisées après une erreur');
+            setCommentaires(getStaticCommentaires(dossierId));
+          }
+        }
+      } finally {
+        // Mettre à jour l'état uniquement si le composant est toujours monté
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    // Exécuter la fonction
     fetchCommentaires();
-  }, [dossierId, userRole]);
+    
+    // Nettoyage lors du démontage
+    return () => {
+      isMounted = false;
+    };
+  }, [dossierId]); // Dépendance uniquement sur dossierId
   
   // Ajouter un nouveau commentaire
   const envoyerCommentaire = async () => {
-    if (!newComment.trim()) {
+    // Validation des données
+    if (!newComment.trim() || !dossierId || dossierId <= 0) {
       return;
     }
     
     try {
       // Récupérer le token d'authentification
       const token = localStorage.getItem('token');
-      
       if (!token) {
         setError('Authentification requise pour commenter');
         return;
@@ -101,27 +108,47 @@ const CommentairesSection = ({ dossierId, userRole }) => {
       
       console.log('Commentaire ajouté avec succès:', response.data);
       
-      // Ajouter le commentaire à la liste locale immédiatement
-      setCommentaires(prevCommentaires => [...prevCommentaires, response.data]);
-      setNewComment('');
-      
-      // Rafraîchir tous les commentaires depuis l'API pour s'assurer d'avoir les données à jour
-      setTimeout(fetchCommentaires, 500);
+      // Ajouter le commentaire à la liste locale
+      if (response.data) {
+        setCommentaires(prevCommentaires => [...prevCommentaires, response.data]);
+        setNewComment('');
+      } else {
+        // Si la réponse ne contient pas de données, recharger tous les commentaires
+        window.location.reload();
+      }
     } catch (err) {
       console.error("Erreur lors de l'envoi du commentaire:", err);
-      setError(err.response?.data?.message || "Erreur lors de l'envoi du commentaire");
+      setError("Erreur lors de l'envoi du commentaire");
+      
+      // En mode développement, simuler l'ajout du commentaire
+      if (process.env.NODE_ENV === 'development') {
+        const nouveauCommentaire = {
+          id: Math.floor(Math.random() * 1000) + 500,
+          contenu: newComment,
+          dateCreation: new Date().toISOString(),
+          utilisateur: {
+            id: 203,
+            nom: "Utilisateur",
+            prenom: "Test",
+            role: userRole || "COORDINATEUR"
+          }
+        };
+        
+        setCommentaires(prevCommentaires => [...prevCommentaires, nouveauCommentaire]);
+        setNewComment('');
+      }
     }
   };
   
   // Vérifier si l'utilisateur peut commenter
   const canComment = ['ADMINISTRATEUR', 'COORDINATEUR', 'MEMBRE_COMITE'].includes(userRole);
   
-  // Fonction pour obtenir des données statiques de commentaires (en développement)
-  const getStaticCommentaires = () => {
+  // Fonction pour obtenir des données statiques de commentaires
+  const getStaticCommentaires = (dossierID) => {
     return [
       {
         id: 101,
-        contenu: "Ce dossier présente des lacunes importantes concernant l'analyse des impacts environnementaux.",
+        contenu: `Ce dossier #${dossierID} présente des lacunes importantes concernant l'analyse des impacts environnementaux.`,
         dateCreation: "2025-05-11T14:10:00",
         utilisateur: {
           id: 201,
@@ -155,6 +182,11 @@ const CommentairesSection = ({ dossierId, userRole }) => {
     ];
   };
   
+  // Rafraîchir manuellement
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+  
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
       <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
@@ -172,7 +204,7 @@ const CommentairesSection = ({ dossierId, userRole }) => {
         {/* Bouton de rafraîchissement manuel */}
         <div className="flex justify-end mb-4">
           <button 
-            onClick={fetchCommentaires}
+            onClick={handleRefresh}
             className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -181,6 +213,13 @@ const CommentairesSection = ({ dossierId, userRole }) => {
             Rafraîchir
           </button>
         </div>
+        
+        {/* Afficher dossierId pour debug en mode développement */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="text-xs text-gray-500 mb-2">
+            ID du dossier: {dossierId || 'Non défini'}
+          </div>
+        )}
         
         {/* État de chargement */}
         {loading && (
@@ -197,7 +236,11 @@ const CommentairesSection = ({ dossierId, userRole }) => {
         )}
         
         {/* Liste des commentaires */}
-        {!loading && commentaires.length === 0 ? (
+        {!loading && !dossierId ? (
+          <div className="bg-red-50 text-red-700 p-3 rounded-md mb-4">
+            Impossible d'afficher les commentaires : Identifiant de dossier manquant
+          </div>
+        ) : !loading && commentaires.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             Aucun commentaire pour le moment.
           </div>
@@ -210,7 +253,7 @@ const CommentairesSection = ({ dossierId, userRole }) => {
         )}
         
         {/* Formulaire d'ajout de commentaire */}
-        {canComment && (
+        {canComment && dossierId > 0 && (
           <div className="mt-4">
             <div className="mb-2">
               <label 
@@ -232,7 +275,7 @@ const CommentairesSection = ({ dossierId, userRole }) => {
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
                 onClick={envoyerCommentaire}
-                disabled={!newComment.trim()}
+                disabled={!newComment.trim() || !dossierId || dossierId <= 0}
               >
                 Envoyer
               </button>

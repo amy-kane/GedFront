@@ -20,6 +20,8 @@ const VoteDetails = () => {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [votingDecision, setVotingDecision] = useState('FAVORABLE');
   const [votingComment, setVotingComment] = useState('');
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState(null);
 
   
   // Fonction utilitaire pour vérifier la présence de l'utilisateur
@@ -160,14 +162,21 @@ const VoteDetails = () => {
   };
   
   const fetchMyVote = async () => {
-    try {
-      const response = await axios.get(`/api/votes/phase/${phaseId}/mon-vote`);
-      setMyVote(response.data);
-    } catch (err) {
+  try {
+    const response = await axios.get(`/api/votes/phase/${phaseId}/mon-vote`);
+    setMyVote(response.data);
+  } catch (err) {
+    // Si erreur 404, c'est normal (pas de vote)
+    if (err.response?.status === 404) {
+      console.log("Aucun vote trouvé pour cet utilisateur");
+      setMyVote(null);
+    } else {
       console.error("Erreur lors de la récupération de mon vote:", err);
-      // Pas de vote trouvé, c'est OK
+      // Autres erreurs, on peut quand même continuer
+      setMyVote(null);
     }
-  };
+  }
+};
   
   const handleSubmitVote = async () => {
     try {
@@ -259,6 +268,68 @@ const VoteDetails = () => {
       }
     }
   };
+  
+  // Fonction pour approuver ou rejeter le dossier
+  // Fonction corrigée pour approuver ou rejeter le dossier
+const handleDecisionDossier = async (decision) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    // Vérifier que la phase est bien terminée
+    if (!phase.dateFin) {
+      alert("Vous devez d'abord terminer la phase de vote avant de prendre une décision");
+      return;
+    }
+    
+    // Déterminer le statut selon la décision
+    const nouveauStatut = decision === 'approuver' ? 'APPROUVE' : 'REJETE';
+    
+    // Afficher un message d'attente
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`Tentative de ${decision} du dossier ${phase.dossier.id} avec le statut ${nouveauStatut}`);
+      
+      // MAINTENANT QUE L'ENDPOINT EXISTE, ON PEUT L'UTILISER
+      await axios.put(`/api/dossiers/${phase.dossier.id}/statut`, null, {
+        params: { statut: nouveauStatut },
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      alert(`Le dossier a été ${decision === 'approuver' ? 'approuvé' : 'rejeté'} avec succès`);
+      
+      // Rediriger vers la page de la liste des dossiers
+      router.push('/coordinateur/dashboard');
+      
+    } catch (apiError) {
+      console.error(`Erreur API lors de la ${decision} du dossier:`, apiError);
+      
+      // Afficher l'erreur détaillée
+      let errorMsg = `Erreur lors de la ${decision === 'approuver' ? 'validation' : 'refus'} du dossier.`;
+      
+      if (apiError.response) {
+        errorMsg += ` (Code ${apiError.response.status})`;
+        if (apiError.response.data && apiError.response.data.message) {
+          errorMsg += `: ${apiError.response.data.message}`;
+        }
+      }
+      
+      setError(errorMsg);
+      setLoading(false);
+      
+      // Proposer la simulation en cas d'erreur persistante
+      if (confirm(`${errorMsg}\n\nVoulez-vous simuler la ${decision} du dossier pour continuer le développement?`)) {
+        alert(`Le dossier a été ${decision === 'approuver' ? 'approuvé' : 'rejeté'} avec succès (simulation)`);
+        router.push('/coordinateur/dossiers');
+      }
+    }
+  } catch (error) {
+    console.error(`Erreur générale lors de la ${decision} du dossier:`, error);
+    setError(`Une erreur inattendue s'est produite: ${error.message}`);
+    setLoading(false);
+  }
+};
   
   // Données simulées pour le fallback
   const getSimulatedPhaseDetails = (id) => {
@@ -530,6 +601,38 @@ const VoteDetails = () => {
         </div>
       </div>
       
+      {/* Statut final du dossier si terminé */}
+      {(phase.dossier?.statut === 'APPROUVE' || phase.dossier?.statut === 'REJETE') && (
+        <div className="mb-6">
+          <div className={`p-6 rounded-lg border-2 text-center ${
+            phase.dossier.statut === 'APPROUVE' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center justify-center mb-3">
+              {phase.dossier.statut === 'APPROUVE' ? (
+                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ) : (
+                <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+            </div>
+            <h3 className="text-2xl font-bold mb-2">
+              Dossier {phase.dossier.statut === 'APPROUVE' ? 'Approuvé' : 'Rejeté'}
+            </h3>
+            <p className="text-lg">
+              Ce dossier a été {phase.dossier.statut === 'APPROUVE' ? 'approuvé' : 'rejeté'} définitivement.
+            </p>
+            <p className="text-sm mt-2 opacity-75">
+              Le processus de vote est terminé.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Boutons d'action */}
       <div className="flex justify-between">
         <button 
@@ -540,26 +643,79 @@ const VoteDetails = () => {
         </button>
         
         <div className="space-x-3">
-            <button 
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          onClick={fetchPhaseDetails} // Rafraîchir les données
-        >
-          Actualiser
-        </button>
-          {phase.dateFin === null && (
-            <button 
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-              onClick={handleTerminerPhase}
-            >
-              Terminer la phase de vote
-            </button>
+          {phase.dateFin === null ? (
+            // Boutons pour phase active
+            <>
+              <button 
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                onClick={fetchPhaseDetails}
+              >
+                Actualiser
+              </button>
+              <button 
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                onClick={handleTerminerPhase}
+              >
+                Terminer la phase de vote
+              </button>
+              <button 
+                onClick={() => window.open(`/coordinateur/dossiers/${phase.dossier.id}`, '_blank')}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                Voir le dossier complet
+              </button>
+            </>
+          ) : (
+            // Boutons pour phase terminée
+            <>
+              {/* N'afficher les boutons d'approbation/rejet QUE si le dossier n'est pas déjà traité */}
+              {phase.dossier?.statut !== 'APPROUVE' && phase.dossier?.statut !== 'REJETE' ? (
+                <>
+                  <button 
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                    onClick={() => {
+                      setConfirmationAction('approuver');
+                      setShowConfirmationModal(true);
+                    }}
+                  >
+                    Approuver le dossier
+                  </button>
+                  <button 
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                    onClick={() => {
+                      setConfirmationAction('rejeter');
+                      setShowConfirmationModal(true);
+                    }}
+                  >
+                    Rejeter le dossier
+                  </button>
+                </>
+              ) : (
+                // Si le dossier est déjà traité, afficher des boutons de navigation
+                <>
+                  <button 
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                    onClick={() => router.push('/coordinateur/dossiers')}
+                  >
+                    Voir tous les dossiers
+                  </button>
+                  <button 
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    onClick={() => router.push('/coordinateur/votes')}
+                  >
+                    Voir tous les votes
+                  </button>
+                </>
+              )}
+              
+              <button 
+                onClick={() => window.open(`/coordinateur/dossiers/${phase.dossier.id}`, '_blank')}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                Voir le dossier complet
+              </button>
+            </>
           )}
-          <button 
-            onClick={() => window.open(`/coordinateur/dossiers/${phase.dossier.id}`, '_blank')}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-          >
-            Voir le dossier complet
-          </button>
         </div>
       </div>
       
@@ -633,6 +789,85 @@ const VoteDetails = () => {
                  onClick={handleSubmitVote}
                >
                  {myVote ? 'Modifier mon vote' : 'Voter'}
+               </button>
+             </div>
+           </div>
+         </div>
+       </div>
+     )}
+     
+     {/* Modal de confirmation pour approbation/rejet */}
+     {showConfirmationModal && (
+       <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+         <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
+           <div className="px-6 py-4 border-b border-gray-200">
+             <h3 className="text-lg font-medium text-gray-900">
+               {confirmationAction === 'approuver' ? 'Approuver le dossier' : 'Rejeter le dossier'}
+             </h3>
+           </div>
+           <div className="p-6">
+             <p className="mb-4 text-gray-600">
+               Vous avez rencontré une erreur de permissions en essayant de {confirmationAction} le dossier. Voici l'explication exacte basée sur le code de l'application:
+             </p>
+             
+             <ol className="list-decimal pl-5 mb-4 space-y-2 text-sm text-gray-600">
+               <li>
+                 <strong>Vérification du rôle:</strong> Dans la méthode <code>canChangeStatut()</code>, seul un utilisateur ayant le rôle COORDINATEUR peut changer un dossier de EN_COURS à APPROUVE/REJETE.
+               </li>
+               <li>
+                 <strong>Vérification du statut:</strong> Le dossier doit être exactement dans l'état EN_COURS pour pouvoir passer à APPROUVE/REJETE. Vérifiez que la phase de vote n'a pas modifié ce statut.
+               </li>
+               <li>
+                 <strong>Code source:</strong> <pre className="bg-gray-100 p-1 rounded text-xs overflow-auto">
+                   if (user.getRole() == Role.COORDINATEUR) {'{'}
+                     if (dossier.getStatut() == StatutDossier.EN_COURS && 
+                         (nouveauStatut == StatutDossier.APPROUVE || 
+                          nouveauStatut == StatutDossier.REJETE)) {'{'}
+                       return true;
+                     {'}'}
+                   {'}'}
+                 </pre>
+               </li>
+             </ol>
+             
+             <div className="bg-yellow-50 p-3 rounded border border-yellow-200 mb-4">
+               <p className="text-sm text-yellow-800">
+                 <strong>Solution 1:</strong> Vérifiez que votre utilisateur est bien un COORDINATEUR.<br/>
+                 <strong>Solution 2:</strong> Vérifiez que le dossier est bien en statut EN_COURS (il pourrait avoir changé lors de la phase de vote).<br/>
+                 <strong>Solution 3:</strong> Pour le développement frontend, vous pouvez utiliser le mode simulation.
+               </p>
+             </div>
+             
+             <div className="flex justify-end space-x-3">
+               <button 
+                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                 onClick={() => setShowConfirmationModal(false)}
+               >
+                 Annuler
+               </button>
+               <button 
+                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                 onClick={() => {
+                   // Fermer le modal
+                   setShowConfirmationModal(false);
+                   
+                   // Retourner à la liste des dossiers
+                   router.push('/coordinateur/dossiers');
+                 }}
+               >
+                 Retour à la liste
+               </button>
+               <button 
+                 className={`px-4 py-2 ${confirmationAction === 'approuver' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded-md`}
+                 onClick={() => {
+                   // Fermer le modal
+                   setShowConfirmationModal(false);
+                   
+                   // Appeler la fonction avec la gestion d'erreur
+                   handleDecisionDossier(confirmationAction);
+                 }}
+               >
+                 Simuler
                </button>
              </div>
            </div>
