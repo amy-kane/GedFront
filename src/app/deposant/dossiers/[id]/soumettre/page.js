@@ -8,22 +8,17 @@ import axios from 'axios';
 import React from 'react';
 
 export default function SoumissionDossier({ params }) {
-  // Utiliser React.use pour accéder aux paramètres
   const paramsObj = React.use(params);
   const dossierId = paramsObj.id;
   const router = useRouter();
   
-  // États pour gérer les données et l'interface
-  const [dossier, setDossier] = useState(null);                 // Informations du dossier
-  const [documentsAjoutes, setDocumentsAjoutes] = useState([]); // Documents téléversés
-  const [documentsRequis, setDocumentsRequis] = useState([]);   // Documents requis pour ce type de demande
-  const [isLoading, setIsLoading] = useState(true);             // Indique si les données sont en cours de chargement
-  const [isSubmitting, setIsSubmitting] = useState(false);      // Indique si le dossier est en cours de soumission
-  const [error, setError] = useState('');                       // Message d'erreur
-  const [acceptConditions, setAcceptConditions] = useState(false); // Acceptation des conditions
-  
-  // IMPORTANT: État pour stocker les associations entre documents requis et documents téléversés
-  // Structure: { "idDocumentRequis1": "idDocumentTeleverse1", "idDocumentRequis2": "idDocumentTeleverse2", ... }
+  const [dossier, setDossier] = useState(null);
+  const [documentsAjoutes, setDocumentsAjoutes] = useState([]);
+  const [documentsRequis, setDocumentsRequis] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [acceptConditions, setAcceptConditions] = useState(false);
   const [documentAssociations, setDocumentAssociations] = useState({});
 
   // Récupérer les données du dossier et des documents
@@ -56,8 +51,7 @@ export default function SoumissionDossier({ params }) {
         });
         setDocumentsRequis(documentsRequisResponse.data);
 
-        // MODIFICATION CLÉ: Récupérer les associations de documents depuis le localStorage
-        // Ces associations ont été créées dans la page de téléversement des documents
+        // Récupérer les associations de documents depuis le localStorage
         const storedAssociations = localStorage.getItem(`documentAssociations_${dossierId}`);
         if (storedAssociations) {
           setDocumentAssociations(JSON.parse(storedAssociations));
@@ -75,57 +69,40 @@ export default function SoumissionDossier({ params }) {
     fetchData();
   }, [dossierId, router]);
 
-  // SOLUTION CLÉ: Version simplifiée pour vérifier les documents obligatoires
-  // Cette fonction est appelée pour déterminer si tous les documents obligatoires sont présents
-  // et si le bouton "Soumettre" peut être activé
+  // Vérifier les documents obligatoires
   const verifierDocumentsObligatoires = () => {
-    // Vérifier que nous avons des données à traiter
     if (!documentsRequis.length) {
       return false;
     }
     
-    // Trouver les documents obligatoires parmi les documents requis
     const documentsObligatoires = documentsRequis.filter(doc => doc.obligatoire);
     
-    // SOLUTION CRITIQUE: Vérifier pour chaque document obligatoire s'il a été téléversé
-    // en se basant principalement sur les associations stockées, plutôt que sur les noms
     return documentsObligatoires.every(docRequis => {
-      // 1. Vérifier d'abord si une association existe pour ce document requis
       if (documentAssociations && documentAssociations[docRequis.id]) {
-        // Si l'association existe, considérer automatiquement le document comme ajouté
-        // sans vérifier s'il existe réellement dans la liste des documents ajoutés
         return true;
       }
       
-      // 2. Méthode traditionnelle de secours: vérifier par nom
       return documentsAjoutes.some(doc => doc.nom === docRequis.nom);
     });
   };
 
-  // SOLUTION CLÉ: Version simplifiée de la fonction getDocumentStatus
-  // Cette fonction détermine si un document est "Ajouté", "Manquant" ou "Optionnel"
-  // pour l'affichage dans le tableau des documents
+  // Obtenir le statut d'un document
   const getDocumentStatus = (nomDocument) => {
-    // Trouver le document requis à partir du nom
     const documentRequis = documentsRequis.find(doc => doc.nom === nomDocument);
     
     if (!documentRequis) {
       return { status: 'unknown', label: 'Inconnu', color: 'text-gray-500' };
     }
     
-    // SOLUTION CRITIQUE: Vérifier d'abord si une association existe
-    // Si elle existe, considérer automatiquement le document comme ajouté
     if (documentAssociations && documentAssociations[documentRequis.id]) {
       return { status: 'added', label: 'Ajouté', color: 'text-green-500' };
     }
     
-    // Méthode traditionnelle de secours: vérifier par nom
     const estAjoute = documentsAjoutes.some(doc => doc.nom === nomDocument);
     if (estAjoute) {
       return { status: 'added', label: 'Ajouté', color: 'text-green-500' };
     }
     
-    // Document non trouvé - déterminer s'il est obligatoire ou optionnel
     if (documentRequis.obligatoire) {
       return { status: 'missing', label: 'Manquant', color: 'text-red-500' };
     }
@@ -133,40 +110,32 @@ export default function SoumissionDossier({ params }) {
     return { status: 'optional', label: 'Optionnel', color: 'text-gray-500' };
   };
 
-  // Fonction utilitaire pour trouver le document téléversé correspondant à un document requis
-  // Utilisée pour afficher le nom du fichier original dans le tableau
+  // Obtenir le document téléversé correspondant
   const getDocumentTeleverse = (docRequis) => {
-    // Si une association existe, trouver le document correspondant dans la liste des documents ajoutés
     if (documentAssociations && documentAssociations[docRequis.id]) {
       return documentsAjoutes.find(doc => doc.id === documentAssociations[docRequis.id]) || null;
     }
     
-    // Méthode traditionnelle de secours: trouver par nom
     return documentsAjoutes.find(doc => doc.nom === docRequis.nom) || null;
   };
 
-  // Fonction de débogage pour diagnostiquer les problèmes dans la console
-  // Cette fonction permet de comprendre pourquoi certains documents ne sont pas reconnus
+  // Fonction de débogage pour diagnostiquer les problèmes
   const debugAssociations = () => {
     console.log("===== DÉBOGAGE DES ASSOCIATIONS =====");
     console.log("Associations récupérées:", documentAssociations);
     console.log("Documents requis:", documentsRequis);
     console.log("Documents ajoutés:", documentsAjoutes);
     
-    // Vérifier le fonctionnement de verifierDocumentsObligatoires
     const obligatoiresPresents = verifierDocumentsObligatoires();
     console.log("Tous les documents obligatoires sont présents:", obligatoiresPresents);
     
-    // Vérifier le statut de chaque document
     documentsRequis.forEach(doc => {
       const status = getDocumentStatus(doc.nom);
       console.log(`Document "${doc.nom}" (ID: ${doc.id}):`, status.label);
       
-      // Vérifier si une association existe
       if (documentAssociations && documentAssociations[doc.id]) {
         console.log(`  Association trouvée: ${doc.id} -> ${documentAssociations[doc.id]}`);
         
-        // Vérifier si le document existe dans la liste
         const docTeleverse = documentsAjoutes.find(d => d.id === documentAssociations[doc.id]);
         console.log(`  Document téléversé trouvé: ${docTeleverse ? 'Oui' : 'Non'}`);
         if (docTeleverse) {
@@ -186,40 +155,34 @@ export default function SoumissionDossier({ params }) {
     }
   }, [isLoading, documentsRequis, documentsAjoutes, documentAssociations]);
 
- // Fonction modifiée pour le bouton "Soumettre définitivement"
-const handleSubmit = async () => {
-  // Vérifier que les conditions sont acceptées
-  if (!acceptConditions) {
-    setError('Vous devez accepter les conditions avant de soumettre.');
-    return;
-  }
-  
-  // Vérifier que tous les documents obligatoires sont présents
-  if (!verifierDocumentsObligatoires()) {
-    setError('Tous les documents obligatoires doivent être ajoutés avant de soumettre.');
-    return;
-  }
-  
-  // Activer l'indicateur de soumission et effacer les erreurs précédentes
-  setIsSubmitting(true);
-  setError('');
-  
-  try {
-    // Utiliser un délai court pour montrer l'animation de chargement
-    setTimeout(() => {
-      console.log('Redirection vers la page de suivi du dossier');
-      // Rediriger directement vers la page de suivi sans appel API
-      router.push(`/deposant/dossiers/${dossierId}/suivi`);
-    }, 500);
+  // Fonction de soumission
+  const handleSubmit = async () => {
+    if (!acceptConditions) {
+      setError('Vous devez accepter les conditions avant de soumettre.');
+      return;
+    }
     
-  } catch (err) {
-    console.error('Erreur lors de la redirection:', err);
-    setError('Une erreur est survenue. Veuillez réessayer.');
-    setIsSubmitting(false);
-  }
-};
+    if (!verifierDocumentsObligatoires()) {
+      setError('Tous les documents obligatoires doivent être ajoutés avant de soumettre.');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError('');
+    
+    try {
+      setTimeout(() => {
+        console.log('Redirection vers la page de suivi du dossier');
+        router.push(`/deposant/dossiers/${dossierId}/suivi`);
+      }, 500);
+      
+    } catch (err) {
+      console.error('Erreur lors de la redirection:', err);
+      setError('Une erreur est survenue. Veuillez réessayer.');
+      setIsSubmitting(false);
+    }
+  };
 
-  // Affichage de l'indicateur de chargement
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -234,7 +197,6 @@ const handleSubmit = async () => {
     );
   }
 
-  // Début du rendu de la page
   return (
     <div className="max-w-4xl mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
       {/* En-tête avec les étapes */}
@@ -265,8 +227,10 @@ const handleSubmit = async () => {
         </div>
       )}
       
+      
+      
       <div className="space-y-6">
-        {/* Récapitulatif des informations du dossier */}
+        {/* ✅ Récapitulatif des informations du dossier AVEC sexe et âge */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
             <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,7 +239,7 @@ const handleSubmit = async () => {
             Informations du dossier
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="p-3 bg-white rounded-md border border-gray-200">
               <p className="text-sm text-gray-500">Numéro de dossier</p>
               <p className="font-medium">{dossier?.numeroDossier}</p>
@@ -296,7 +260,27 @@ const handleSubmit = async () => {
               <p className="font-medium">{dossier?.emailDeposant}</p>
             </div>
             
+            {/* ✅ Sexe ajouté - Utilise le champ direct du dossier */}
             <div className="p-3 bg-white rounded-md border border-gray-200">
+              <p className="text-sm text-gray-500">Sexe</p>
+              <p className="font-medium">
+                {dossier?.sexeDeposant || 'Non spécifié'}
+                {/* DEBUG temporaire */}
+                
+              </p>
+            </div>
+            
+            {/* ✅ Âge ajouté - Utilise le champ direct du dossier */}
+            <div className="p-3 bg-white rounded-md border border-gray-200">
+              <p className="text-sm text-gray-500">Âge</p>
+              <p className="font-medium">
+                {dossier?.ageDeposant ? `${dossier.ageDeposant} ans` : 'Non spécifié'}
+                {/* DEBUG temporaire */}
+                
+              </p>
+            </div>
+            
+            <div className="p-3 bg-white rounded-md border border-gray-200 md:col-span-2">
               <p className="text-sm text-gray-500">Adresse</p>
               <p className="font-medium">{dossier?.adresseDeposant}</p>
             </div>
@@ -307,6 +291,7 @@ const handleSubmit = async () => {
             </div>
           </div>
         </div>
+        
         {/* Liste des documents */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
@@ -323,7 +308,6 @@ const handleSubmit = async () => {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom du document</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  {/* Colonne ajoutée pour afficher le nom du fichier téléversé */}
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fichier téléversé</th>
                 </tr>
               </thead>
@@ -332,7 +316,6 @@ const handleSubmit = async () => {
                 {documentsRequis
                   .filter(doc => doc.obligatoire)
                   .map(doc => {
-                    // Utiliser les fonctions modifiées pour déterminer le statut et obtenir le document téléversé
                     const status = getDocumentStatus(doc.nom);
                     const docTeleverse = getDocumentTeleverse(doc);
                     return (
@@ -389,56 +372,51 @@ const handleSubmit = async () => {
                     );
                   })}
                 
-                {/* Documents supplémentaires (non requis mais ajoutés) */}
-                  {documentsAjoutes
-                    .filter(doc => {
-                      // 1. Exclure les documents qui sont déjà associés à un document requis
-                      const estDejaAssocie = Object.keys(documentAssociations).some(key => 
-                        documentAssociations[key] === doc.id
-                      );
-                      if (estDejaAssocie) return false;
-                      
-                      // 2. Exclure les documents dont le nom correspond à un document requis
-                      const correspondADocumentRequis = documentsRequis.some(reqDoc => 
-                        reqDoc.nom === doc.nom
-                      );
-                      if (correspondADocumentRequis) return false;
-                      
-                      // 3. Pour ce type de demande spécifique, nous n'affichons pas de documents supplémentaires
-                      // Si tous les documents obligatoires sont les seuls documents requis
-                      const tousObligatoires = documentsRequis.every(doc => doc.obligatoire);
-                      if (documentsRequis.length === 5 && tousObligatoires) {
-                        return false; // Ne pas afficher de documents supplémentaires
-                      }
-                      
-                      // Dans les autres cas, afficher le document supplémentaire
-                      return true;
-                    })
-                    .map(doc => (
-                      <tr key={doc.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {doc.nom}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          Supplémentaire
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            Ajouté
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className="text-xs text-gray-700">
-                            {doc.nomFichierOriginal || doc.nom}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                {/* Documents supplémentaires */}
+                {documentsAjoutes
+                  .filter(doc => {
+                    const estDejaAssocie = Object.keys(documentAssociations).some(key => 
+                      documentAssociations[key] === doc.id
+                    );
+                    if (estDejaAssocie) return false;
+                    
+                    const correspondADocumentRequis = documentsRequis.some(reqDoc => 
+                      reqDoc.nom === doc.nom
+                    );
+                    if (correspondADocumentRequis) return false;
+                    
+                    const tousObligatoires = documentsRequis.every(doc => doc.obligatoire);
+                    if (documentsRequis.length === 5 && tousObligatoires) {
+                      return false;
+                    }
+                    
+                    return true;
+                  })
+                  .map(doc => (
+                    <tr key={doc.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {doc.nom}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        Supplémentaire
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          Ajouté
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className="text-xs text-gray-700">
+                          {doc.nomFichierOriginal || doc.nom}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
           
-          {/* Afficher un avertissement si des documents obligatoires sont manquants */}
+          {/* Avertissement si des documents obligatoires sont manquants */}
           {!verifierDocumentsObligatoires() && (
             <div className="mt-4 p-3 bg-red-50 rounded-md">
               <p className="text-sm text-red-800 font-medium">
@@ -455,14 +433,8 @@ const handleSubmit = async () => {
         </div>
         
         {/* Section de débogage des associations (visible uniquement en développement) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-yellow-50 p-4 border border-yellow-200 rounded-md mb-4">
-            <h3 className="text-sm font-bold text-yellow-800 mb-2">Associations de documents (Debug)</h3>
-            <pre className="text-xs overflow-auto max-h-40 bg-white p-2 rounded">
-              {JSON.stringify(documentAssociations, null, 2)}
-            </pre>
-          </div>
-        )}
+        
+        
         {/* Conditions de soumission */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">

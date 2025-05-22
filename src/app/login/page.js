@@ -29,6 +29,37 @@ export default function Login() {
     }));
   };
 
+  // ✅ NOUVELLE FONCTION : Redirection intelligente pour les déposants
+  const redirectDeposant = async (token) => {
+    try {
+      console.log('Vérification des dossiers existants pour le déposant...');
+      
+      // Vérifier si le déposant a déjà des dossiers
+      const dossiersResponse = await axios.get('/api/dossiers', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('Réponse dossiers:', dossiersResponse.data);
+      
+      if (dossiersResponse.data && dossiersResponse.data.content && dossiersResponse.data.content.length > 0) {
+        // Le déposant a des dossiers, rediriger vers le dernier dossier
+        const dernierDossier = dossiersResponse.data.content[0]; // Le plus récent
+        console.log('Redirection vers le dossier:', dernierDossier.id);
+        router.push(`/deposant/dossiers/${dernierDossier.id}/suivi`);
+      } else {
+        // Le déposant n'a pas de dossier, rediriger vers la création
+        console.log('Aucun dossier trouvé, redirection vers création');
+        router.push('/deposant/creer-dossier');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des dossiers:', error);
+      // En cas d'erreur, rediriger vers la création par défaut
+      router.push('/deposant/creer-dossier');
+    }
+  };
+
   // Fonction qui gère la soumission du formulaire de connexion
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,7 +107,8 @@ export default function Login() {
             router.push('/coordinateur/dashboard');
             break;
           case 'DEPOSANT':
-            router.push('deposant/creer-dossier');
+            // ✅ MODIFIÉ : Redirection intelligente pour les déposants
+            await redirectDeposant(response.data.token);
             break;
           default:
             // Si le rôle n'est pas reconnu, utiliser une page par défaut

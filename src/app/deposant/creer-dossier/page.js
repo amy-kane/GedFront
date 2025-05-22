@@ -15,6 +15,8 @@ export default function CreerDossier() {
     adresseDeposant: '',
     telephoneDeposant: '',
     emailDeposant: '',
+    sexeDeposant: '',      // ✅ Ajouté
+    ageDeposant: '',       // ✅ Ajouté
     typeDemandeId: ''
   });
   
@@ -24,9 +26,7 @@ export default function CreerDossier() {
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState(null);
 
-
-
-  // Ajoutez la fonction de diagnostic du token JWT ici
+  // Fonction de diagnostic du token JWT
   const analyzeJwtToken = () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -35,23 +35,19 @@ export default function CreerDossier() {
     }
     
     try {
-      // Nettoyer le token (enlever 'Bearer ' s'il est présent)
       let cleanToken = token;
       if (token.startsWith('Bearer ')) {
         cleanToken = token.substring(7);
       }
       
-      // Décoder le payload du JWT (partie du milieu)
       const parts = cleanToken.split('.');
       if (parts.length !== 3) {
         console.error("Format de token invalide");
         return;
       }
       
-      // Décoder la partie payload (base64)
       const payload = JSON.parse(atob(parts[1]));
       
-      // Afficher les informations importantes
       console.log("Analyse du token JWT:");
       console.log("- Subject:", payload.sub);
       console.log("- Rôles/Autorités:", payload.authorities || payload.roles || payload.scope || "Non trouvé");
@@ -67,34 +63,32 @@ export default function CreerDossier() {
     }
   };
 
-  
   // Récupérer les informations de l'utilisateur au chargement
-useEffect(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    const userData = JSON.parse(userStr);
-    setUser(userData);
-    
-    // Ajoutez ces lignes pour le débogage
-    console.log("Informations utilisateur:", userData);
-    console.log("Rôle de l'utilisateur:", userData.role);
-    
-    // Analyser le token JWT pour le débogage
-    const tokenInfo = analyzeJwtToken();
-    console.log("Information du token JWT:", tokenInfo);
-    
-    // Pré-remplir les champs avec les infos de l'utilisateur
-    setFormData(prev => ({
-      ...prev,
-      nomDeposant: userData.nom || '',
-      prenomDeposant: userData.prenom || '',
-      emailDeposant: userData.email || ''
-    }));
-  } else {
-    // Rediriger vers la page de connexion si l'utilisateur n'est pas connecté
-    router.push('/login');
-  }
-}, [router]);
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const userData = JSON.parse(userStr);
+      setUser(userData);
+      
+      console.log("Informations utilisateur:", userData);
+      console.log("Rôle de l'utilisateur:", userData.role);
+      
+      const tokenInfo = analyzeJwtToken();
+      console.log("Information du token JWT:", tokenInfo);
+      
+      // ✅ Pré-remplir TOUS les champs avec les infos de l'utilisateur
+      setFormData(prev => ({
+        ...prev,
+        nomDeposant: userData.nom || '',
+        prenomDeposant: userData.prenom || '',
+        emailDeposant: userData.email || '',
+        sexeDeposant: userData.sexe || '',           // ✅ Récupéré du profil
+        ageDeposant: userData.age ? userData.age.toString() : ''  // ✅ Récupéré du profil
+      }));
+    } else {
+      router.push('/login');
+    }
+  }, [router]);
   
   // Charger les types de demande disponibles
   useEffect(() => {
@@ -103,10 +97,10 @@ useEffect(() => {
       try {
         const token = localStorage.getItem('token');
         const response = await axios.get('/api/types-demande', {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          });
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
         
         if (response.data) {
           setTypesDemandeList(response.data);
@@ -132,184 +126,62 @@ useEffect(() => {
   };
   
   // Fonction de soumission du formulaire
-// const handleSubmit = async (e) => {
-//   e.preventDefault();
-//   setError('');
-//   setSubmitting(true);
-  
-//   // Validation basique des champs obligatoires
-//   if (!formData.adresseDeposant || !formData.telephoneDeposant || !formData.typeDemandeId) {
-//     setError('Veuillez remplir tous les champs obligatoires');
-//     setSubmitting(false);
-//     return;
-//   }
-  
-//   try {
-//     // Récupération du token d'authentification depuis le localStorage
-//     const token = localStorage.getItem('token');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
     
-//     // Ajout de logs pour le débogage
-//     console.log("Token utilisé:", token); // Vérifier si le token existe et n'est pas expiré
-//     console.log("Données à envoyer:", {
-//       typeDemandeId: formData.typeDemandeId,
-//       adresseDeposant: formData.adresseDeposant,
-//       telephoneDeposant: formData.telephoneDeposant
-//     });
-    
-//     // S'assurer que le token est au bon format (Bearer + token)
-//     const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-    
-//     // Utiliser le chemin relatif avec le proxy Next.js pour envoyer la requête au backend
-//     const response = await axios.post(
-//       '/api/dossiers', 
-//       new URLSearchParams({
-//         typeDemandeId: formData.typeDemandeId,
-//         adresseDeposant: formData.adresseDeposant,
-//         telephoneDeposant: formData.telephoneDeposant
-//       }),
-//       {
-//         headers: {
-//           'Authorization': authToken, // Utilisation du token correctement formaté
-//           'Content-Type': 'application/x-www-form-urlencoded'
-//         }
-//       }
-//     );
-    
-//     if (response.data) {
-//       // Redirection vers la page d'ajout de documents après création réussie
-//       router.push(`/deposant/dossiers/${response.data.id}/documents`);
-//     }
-//   } catch (err) {
-//     // Gestion détaillée des erreurs pour faciliter le débogage
-//     console.error('Erreur lors de la création du dossier:', err);
-//     console.error('Statut de l\'erreur:', err.response?.status);
-//     console.error('Détails de la réponse:', err.response?.data);
-    
-//     // Messages d'erreur adaptés selon le type d'erreur
-//     if (err.message === 'Network Error') {
-//       setError('Impossible de se connecter au serveur. Veuillez vérifier votre connexion réseau et que le serveur backend est en cours d\'exécution.');
-//     } else if (err.response) {
-//       // Si l'erreur est 403, c'est un problème d'autorisation
-//       if (err.response.status === 403) {
-//         setError('Vous n\'avez pas l\'autorisation de créer un dossier. Veuillez vérifier vos droits d\'accès ou vous reconnecter.');
-//       } else {
-//         setError(err.response.data.message || 'Erreur lors de la création du dossier');
-//       }
-//     } else {
-//       setError('Erreur de connexion au serveur');
-//     }
-//   } finally {
-//     setSubmitting(false);
-//   }
-// };
-
-
-// Modifiez la fonction handleSubmit
-
-// const handleSubmit = async (e) => {
-//   e.preventDefault();
-//   setError('');
-//   setSubmitting(true);
-  
-//   try {
-//     const token = localStorage.getItem('token');
-    
-//     // Contourner l'API route Next.js et appeler directement le backend
-//     const response = await axios({
-//       method: 'post',
-//       url: 'http://localhost:8081/api/dossiers',
-//       params: {
-//         typeDemandeId: formData.typeDemandeId,
-//         adresseDeposant: formData.adresseDeposant,
-//         telephoneDeposant: formData.telephoneDeposant
-//       },
-//       headers: {
-//         'Authorization': `Bearer ${token}`,
-//         'Content-Type': 'application/json',
-//         'Accept': 'application/json'
-//       }
-//     });
-    
-//     // Traitement de la réponse...
-//     if (response.data) {
-//       router.push(`/deposant/dossiers/${response.data.id}/documents`);
-//     }
-//   } catch (err) {
-//     // Gestion des erreurs...
-//     console.error('Erreur lors de la création du dossier:', err);
-//     setError(err.response?.data?.message || 'Erreur lors de la création du dossier');
-//   } finally {
-//     setSubmitting(false);
-//   }
-// };
-
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setSubmitting(true);
-  
-  // Validation basique des champs obligatoires
-  if (!formData.adresseDeposant || !formData.telephoneDeposant || !formData.typeDemandeId) {
-    setError('Veuillez remplir tous les champs obligatoires');
-    setSubmitting(false);
-    return;
-  }
-  
-  try {
-    // Récupération du token d'authentification depuis le localStorage
-    const token = localStorage.getItem('token');
-    console.log("Token utilisé:", token.substring(0, 20) + "..."); // Affiche juste le début du token pour la sécurité
-    
-    // Préparation des données à envoyer
-    const dataToSend = {
-      typeDemandeId: formData.typeDemandeId,
-      adresseDeposant: formData.adresseDeposant,
-      telephoneDeposant: formData.telephoneDeposant
-    };
-    
-    console.log("Données à envoyer:", dataToSend);
-    
-    // Envoi avec axios pour plus de contrôle et de débogage
-    const response = await axios.post('/api/dossiers', dataToSend, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log("Réponse reçue:", response.status, response.data);
-    
-    // Redirection vers la page d'ajout de documents après création réussie
-    router.push(`/deposant/dossiers/${response.data.id}/documents`);
-  } catch (err) {
-    console.error('Erreur lors de la création du dossier:', err);
-    
-    // Affichage détaillé de l'erreur pour le débogage
-    if (err.response) {
-      // La requête a été faite et le serveur a répondu avec un code d'état
-      // qui n'est pas dans la plage 2xx
-      console.error('Statut de l\'erreur:', err.response.status);
-      console.error('Données de l\'erreur:', err.response.data);
-      setError(`Erreur ${err.response.status}: ${err.response.data.message || 'Erreur serveur'}`);
-    } else if (err.request) {
-      // La requête a été faite mais aucune réponse n'a été reçue
-      console.error('Requête sans réponse:', err.request);
-      setError('Aucune réponse reçue du serveur');
-    } else {
-      // Une erreur s'est produite lors de la configuration de la requête
-      console.error('Erreur:', err.message);
-      setError(err.message);
+    // Validation basique des champs obligatoires
+    if (!formData.adresseDeposant || !formData.telephoneDeposant || !formData.typeDemandeId) {
+      setError('Veuillez remplir tous les champs obligatoires');
+      setSubmitting(false);
+      return;
     }
-  } finally {
-    setSubmitting(false);
-  }
-};
+    
+    try {
+      const token = localStorage.getItem('token');
+      console.log("Token utilisé:", token.substring(0, 20) + "...");
+      
+      const dataToSend = {
+        typeDemandeId: formData.typeDemandeId,
+        adresseDeposant: formData.adresseDeposant,
+        telephoneDeposant: formData.telephoneDeposant
+      };
+      
+      console.log("Données à envoyer:", dataToSend);
+      
+      const response = await axios.post('/api/dossiers', dataToSend, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log("Réponse reçue:", response.status, response.data);
+      
+      router.push(`/deposant/dossiers/${response.data.id}/documents`);
+    } catch (err) {
+      console.error('Erreur lors de la création du dossier:', err);
+      
+      if (err.response) {
+        console.error('Statut de l\'erreur:', err.response.status);
+        console.error('Données de l\'erreur:', err.response.data);
+        setError(`Erreur ${err.response.status}: ${err.response.data.message || 'Erreur serveur'}`);
+      } else if (err.request) {
+        console.error('Requête sans réponse:', err.request);
+        setError('Aucune réponse reçue du serveur');
+      } else {
+        console.error('Erreur:', err.message);
+        setError(err.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
       <div className="mb-8 text-center">
-        {/* Indicateur de progression */}
         <div className="flex justify-center items-center mb-4">
           <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">1</div>
           <div className="w-16 h-1 bg-gray-300"></div>
@@ -344,7 +216,7 @@ const handleSubmit = async (e) => {
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Nom et Prénom (préremplis et désactivés) */}
+            {/* Nom et Prénom */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
               <input
@@ -367,7 +239,30 @@ const handleSubmit = async (e) => {
               <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
             </div>
             
-            {/* Email (prérempli et désactivé) */}
+            {/* ✅ Sexe et Âge ajoutés */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sexe</label>
+              <input
+                type="text"
+                value={formData.sexeDeposant}
+                disabled
+                className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Âge</label>
+              <input
+                type="text"
+                value={formData.ageDeposant}
+                disabled
+                className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+            </div>
+            
+            {/* Email */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
@@ -379,7 +274,7 @@ const handleSubmit = async (e) => {
               <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
             </div>
             
-            {/* Adresse (à compléter) */}
+            {/* Adresse */}
             <div className="md:col-span-2">
               <label htmlFor="adresseDeposant" className="block text-sm font-medium text-gray-700 mb-1">
                 Adresse <span className="text-red-500">*</span>
@@ -396,7 +291,7 @@ const handleSubmit = async (e) => {
               />
             </div>
             
-            {/* Téléphone (à compléter) */}
+            {/* Téléphone */}
             <div>
               <label htmlFor="telephoneDeposant" className="block text-sm font-medium text-gray-700 mb-1">
                 Téléphone <span className="text-red-500">*</span>
