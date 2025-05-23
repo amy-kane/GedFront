@@ -1,34 +1,97 @@
-// src/components/layouts/AdminLayout.tsx
+// src/components/layouts/AdminLayout.tsx - Version de diagnostic
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
-// Définir correctement le type pour les props de AdminLayout
 type AdminLayoutProps = {
   children: React.ReactNode;
+};
+
+type UserData = {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  role: string;
 };
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
   const router = useRouter();
   const pathname = usePathname();
+  const [user, setUser] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Erreur parsing user data:', error);
+      }
+    }
+  }, []);
 
   // Fonctions de navigation
   const navigateToDashboard = () => {
     console.log("Navigation vers dashboard");
     router.push('/admin/dashboard');
   };
+
   const navigateToUserManagement = () => router.push('/admin/users');
+  
   const navigateToTypeDemandeManagement = () => {
     console.log("Navigation vers types de demande");
     router.push('/admin/types-demande');
   };
+  
   const navigateToFolders = () => router.push('/admin/dossiers');
-  const navigateToProfile = () => router.push('/admin/profile');
+  
+  const navigateToStatistics = () => {
+    console.log("Navigation vers statistiques");
+    router.push('/admin/statistiques');
+  };
+  
   const navigateToNotifications = () => router.push('/admin/notifications');
 
-  // Déterminer quelle page est active en fonction de l'URL actuelle
+  // ✅ CORRECTION : Navigation vers profil avec debug
+  const navigateToProfile = () => {
+    console.log("🔍 Tentative de navigation vers profil");
+    console.log("📂 Route cible: /profil");
+    console.log("👤 Utilisateur actuel:", user);
+    
+    try {
+      // Utiliser la route existante /profil
+      router.push('/profil');
+      console.log("✅ Navigation lancée vers /profil");
+    } catch (error) {
+      console.error("❌ Erreur lors de la navigation:", error);
+    }
+  };
+
+  // ✅ CORRECTION : Fonction de déconnexion avec debug
+  const handleLogout = () => {
+    console.log("🚪 Tentative de déconnexion");
+    
+    try {
+      if (window.confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+        console.log("🧹 Nettoyage du localStorage");
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('refreshToken');
+        
+        console.log("🔄 Redirection vers /login");
+        router.push('/login');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la déconnexion:', error);
+      router.push('/login');
+    }
+  };
+
+  // Déterminer quelle page est active
   const isActive = (path: string): boolean => {
     return pathname?.includes(path) || false;
   };
@@ -74,19 +137,32 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               onClick={navigateToUserManagement}
             />
             <NavItem 
-              icon={<UserIcon />} 
-              text="Profil" 
-              active={isActive('/admin/profile')}
-              onClick={navigateToProfile}
+              icon={<ChartIcon />} 
+              text="Statistiques" 
+              active={isActive('/admin/statistiques')}
+              onClick={navigateToStatistics}
             />
           </div>
         </nav>
         
         <div className="border-t border-gray-200 p-4">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">Système Administrateur</span>
-            <span className="text-xs text-gray-500">ADMIN</span>
-            <span className="text-xs text-gray-500 mt-1">admin@example.com</span>
+          <div className="flex items-center">
+            <div className="mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">
+                {user ? `${user.prenom} ${user.nom}` : 'Système Administrateur'}
+              </span>
+              <span className="text-xs text-gray-500">
+                {user?.role || 'ADMIN'}
+              </span>
+              <span className="text-xs text-gray-500 mt-1">
+                {user?.email || 'admin@example.com'}
+              </span>
+            </div>
           </div>
         </div>
       </aside>
@@ -96,18 +172,26 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6">
           <h2 className="text-xl font-semibold text-gray-800">Administration</h2>
           <div className="flex items-center space-x-4">
-            <button className="p-1 text-gray-500 hover:text-gray-700">
-              <BellIcon className="h-6 w-6" />
+            {/* ✅ BOUTON PROFIL avec debug et styles améliorés */}
+            <button 
+              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all duration-200 border border-transparent hover:border-blue-200"
+              onClick={navigateToProfile}
+              title="Mon profil"
+              onMouseEnter={() => console.log("🖱️ Survol du bouton profil")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
             </button>
+            
             <div className="flex items-center">
-              <span className="mr-2 text-sm font-medium">Système Administrateur (ADMIN)</span>
+              <span className="mr-2 text-sm font-medium">
+                {user ? `${user.prenom} ${user.nom} (${user.role})` : 'Système Administrateur (ADMIN)'}
+              </span>
               <button 
-                className="p-1 text-gray-500 hover:text-gray-700"
-                onClick={() => {
-                  // Logout logic here
-                  localStorage.removeItem('token');
-                  router.push('/login');
-                }}
+                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-all duration-200"
+                onClick={handleLogout}
+                title="Se déconnecter"
               >
                 <LogoutIcon className="h-5 w-5" />
               </button>
@@ -138,8 +222,10 @@ const NavItem = ({ icon, text, active = false, onClick }: NavItemProps) => (
       console.log(`NavItem clicked: ${text}`);
       if (onClick) onClick(e);
     }}
-    className={`flex items-center w-full px-3 py-2 text-sm font-medium text-left rounded-md ${
-      active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+    className={`flex items-center w-full px-3 py-2 text-sm font-medium text-left rounded-md transition-colors duration-200 ${
+      active 
+        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
     }`}
   >
     <span className="mr-3">{icon}</span>
@@ -147,7 +233,7 @@ const NavItem = ({ icon, text, active = false, onClick }: NavItemProps) => (
   </button>
 );
 
-// Icônes
+// Icônes (identiques à votre code existant)
 const HomeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
     <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
@@ -179,9 +265,9 @@ const UsersIcon = () => (
   </svg>
 );
 
-const UserIcon = () => (
+const ChartIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
   </svg>
 );
 

@@ -13,7 +13,7 @@ const CoordinateurLayout = ({ children }) => {
   const navigateToDashboard = () => router.push('/coordinateur/dashboard');
   const navigateToPhases = () => router.push('/coordinateur/phases');
   const navigateToVotes = () => router.push('/coordinateur/votes');
-  const navigateToProfile = () => router.push('/coordinateur/profile');
+  const navigateToProfile = () => router.push('/admin/statistiques');
   const navigateToNotifications = () => router.push('/coordinateur/notifications');
   const navigateToDiscussions = () => router.push('/coordinateur/discussions');
 
@@ -65,7 +65,7 @@ const CoordinateurLayout = ({ children }) => {
             <NavItem 
               icon={<UserIcon />} 
               text="Profil" 
-              active={isActive('/coordinateur/profile')}
+              active={isActive('/admin/statistiques')}
               onClick={navigateToProfile}
             />
           </div>
