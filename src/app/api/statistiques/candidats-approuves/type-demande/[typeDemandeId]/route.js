@@ -1,0 +1,43 @@
+// src/app/api/statistiques/candidats-approuves/type-demande/[typeDemandeId]/route.js
+import { NextResponse } from 'next/server';
+
+export async function GET(request, { params }) {
+  try {
+    // Récupérer l'ID du type de demande depuis les paramètres
+    const { typeDemandeId } = params;
+    
+    // Récupérer le token depuis les headers
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Token manquant' }, { status: 401 });
+    }
+
+    // Faire l'appel au backend Spring Boot
+    const backendResponse = await fetch(`http://localhost:8081/api/statistiques/candidats-approuves/type-demande/${typeDemandeId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!backendResponse.ok) {
+      const errorText = await backendResponse.text();
+      console.error('Erreur backend candidats approuvés par type:', errorText);
+      return NextResponse.json(
+        { error: 'Erreur lors de la récupération des candidats approuvés pour ce type de demande' },
+        { status: backendResponse.status }
+      );
+    }
+
+    const data = await backendResponse.json();
+    return NextResponse.json(data);
+    
+  } catch (error) {
+    console.error('Erreur API candidats approuvés par type:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur lors de la récupération des candidats approuvés par type' },
+      { status: 500 }
+    );
+  }
+}

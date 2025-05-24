@@ -21,8 +21,6 @@ export default function Profil() {
     nom: '',
     prenom: '',
     email: '',
-    telephone: '',
-    adresse: '',
     motDePasse: '',
     confirmMotDePasse: ''
   });
@@ -48,8 +46,6 @@ export default function Profil() {
           nom: userData.nom || '',
           prenom: userData.prenom || '',
           email: userData.email || '',
-          telephone: userData.telephone || '',
-          adresse: userData.adresse || '',
           motDePasse: '',
           confirmMotDePasse: ''
         });
@@ -95,9 +91,7 @@ export default function Profil() {
       const dataToSend = {
         nom: formData.nom,
         prenom: formData.prenom,
-        email: formData.email,
-        telephone: formData.telephone,
-        adresse: formData.adresse
+        email: formData.email
       };
       
       // Ajouter le mot de passe seulement s'il est renseigné
@@ -143,8 +137,6 @@ export default function Profil() {
       nom: user.nom || '',
       prenom: user.prenom || '',
       email: user.email || '',
-      telephone: user.telephone || '',
-      adresse: user.adresse || '',
       motDePasse: '',
       confirmMotDePasse: ''
     });
@@ -330,7 +322,7 @@ export default function Profil() {
               </div>
 
               {/* Email */}
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email <span className="text-red-500">*</span>
                 </label>
@@ -346,48 +338,6 @@ export default function Profil() {
                 ) : (
                   <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
                     {user?.email || 'Non renseigné'}
-                  </div>
-                )}
-              </div>
-
-              {/* Téléphone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Téléphone
-                </label>
-                {editMode ? (
-                  <input
-                    type="tel"
-                    name="telephone"
-                    value={formData.telephone}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="+221 77 123 45 67"
-                  />
-                ) : (
-                  <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                    {user?.telephone || 'Non renseigné'}
-                  </div>
-                )}
-              </div>
-
-              {/* Adresse */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Adresse
-                </label>
-                {editMode ? (
-                  <input
-                    type="text"
-                    name="adresse"
-                    value={formData.adresse}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Votre adresse complète"
-                  />
-                ) : (
-                  <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                    {user?.adresse || 'Non renseigné'}
                   </div>
                 )}
               </div>
@@ -448,41 +398,6 @@ export default function Profil() {
                       })
                     : 'Non disponible'}
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Section sécurité */}
-        <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-              Informations de sécurité
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dernière connexion
-                </label>
-                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  {user?.derniereConnexion 
-                    ? new Date(user.derniereConnexion).toLocaleString('fr-FR')
-                    : 'Non disponible'}
-                </div>
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={() => alert('Fonctionnalité de changement de mot de passe à implémenter')}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 flex items-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                  Changer le mot de passe
-                </button>
               </div>
             </div>
           </div>

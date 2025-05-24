@@ -1,4 +1,4 @@
-// src/app/admin/statistiques/page.js
+// src/app/admin/statistiques/page.js - Version avec debug
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,9 +13,12 @@ export default function Statistiques() {
   const [statsGlobales, setStatsGlobales] = useState(null);
   const [statsParType, setStatsParType] = useState(null);
   const [statsDemographiques, setStatsDemographiques] = useState(null);
+  const [candidatsApprouves, setCandidatsApprouves] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [ongletActif, setOngletActif] = useState('globales');
+  const [exporting, setExporting] = useState(false);
+  const [exportingType, setExportingType] = useState(null);
 
   // Couleurs pour les graphiques
   const COLORS = {
@@ -34,40 +37,549 @@ export default function Statistiques() {
   useEffect(() => {
     const fetchStatistiques = async () => {
       setLoading(true);
+      setError('');
+      
       try {
         const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        
+        console.log('=== DEBUG FRONTEND ===');
+        console.log('Token exists:', !!token);
+        console.log('User data:', user);
+        
         if (!token) {
+          console.log('Pas de token, redirection vers login');
           router.push('/login');
           return;
         }
 
-        // Chargement parallèle de toutes les statistiques
-        const [globalesRes, parTypeRes, demographiquesRes] = await Promise.all([
-          axios.get('/api/statistiques/globales', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get('/api/statistiques/par-type-demande', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get('/api/statistiques/demographiques', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
+        if (user) {
+          const userData = JSON.parse(user);
+          console.log('User role:', userData.role);
+          console.log('User nom:', userData.nom);
+        }
 
-        setStatsGlobales(globalesRes.data);
-        setStatsParType(parTypeRes.data);
-        setStatsDemographiques(demographiquesRes.data);
+        const headers = { Authorization: `Bearer ${token}` };
+        console.log('Headers:', headers);
+
+        // Tentative de chargement des statistiques globales d'abord
+        console.log('Chargement des statistiques globales...');
+        
+        try {
+          const globalesRes = await axios.get('/api/statistiques/globales', { headers });
+          console.log('✅ Statistiques globales chargées:', globalesRes.data);
+          setStatsGlobales(globalesRes.data);
+        } catch (err) {
+          console.error('❌ Erreur statistiques globales:', err.response?.data || err.message);
+          throw new Error(`Erreur statistiques globales: ${err.response?.data?.error || err.message}`);
+        }
+
+        // Chargement des autres statistiques
+        try {
+          console.log('Chargement des statistiques par type...');
+          const parTypeRes = await axios.get('/api/statistiques/par-type-demande', { headers });
+          console.log('✅ Statistiques par type chargées');
+          setStatsParType(parTypeRes.data);
+        } catch (err) {
+          console.error('❌ Erreur statistiques par type:', err.response?.data || err.message);
+          // On continue même si cette partie échoue
+        }
+
+        try {
+          console.log('Chargement des statistiques démographiques...');
+          const demographiquesRes = await axios.get('/api/statistiques/demographiques', { headers });
+          console.log('✅ Statistiques démographiques chargées');
+          setStatsDemographiques(demographiquesRes.data);
+        } catch (err) {
+          console.error('❌ Erreur statistiques démographiques:', err.response?.data || err.message);
+          // On continue même si cette partie échoue
+        }
+
+        try {
+          console.log('Chargement des candidats approuvés...');
+          const candidatsRes = await axios.get('/api/statistiques/candidats-approuves', { headers });
+          console.log('✅ Candidats approuvés chargés:', candidatsRes.data.length, 'candidats');
+          
+          // Organiser les candidats par type de demande
+          const candidatsParType = {};
+          candidatsRes.data.forEach(candidat => {
+            const type = candidat.typeDemande;
+            if (!candidatsParType[type]) {
+              candidatsParType[type] = [];
+            }
+            candidatsParType[type].push(candidat);
+          });
+          setCandidatsApprouves(candidatsParType);
+        } catch (err) {
+          console.error('❌ Erreur candidats approuvés:', err.response?.data || err.message);
+          // Si l'endpoint n'existe pas encore, on continue sans erreur fatale
+          if (err.response?.status === 404) {
+            console.log('ℹ️ Endpoint candidats approuvés non disponible (404) - Mode dégradé');
+            setCandidatsApprouves({});
+          } else if (err.response?.status === 403) {
+            console.log('⚠️ Pas d\'autorisation pour candidats approuvés (403) - Mode dégradé');
+            setCandidatsApprouves({});
+          } else {
+            console.log('⚠️ Erreur candidats approuvés, continuation en mode dégradé');
+            setCandidatsApprouves({});
+          }
+        }
         
         setLoading(false);
+        console.log('=== FIN DEBUG FRONTEND ===');
+        
       } catch (err) {
-        console.error('Erreur lors du chargement des statistiques:', err);
-        setError('Impossible de charger les statistiques. Vérifiez vos droits d\'accès.');
+        console.error('=== ERREUR GLOBALE ===');
+        console.error('Status:', err.response?.status);
+        console.error('Data:', err.response?.data);
+        console.error('Message:', err.message);
+        
+        if (err.response?.status === 401) {
+          console.log('Erreur 401, redirection vers login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          router.push('/login');
+          return;
+        }
+        
+        if (err.response?.status === 403) {
+          setError(`Accès refusé: ${err.response.data?.error || 'Vous n\'avez pas les droits pour consulter les statistiques. Contactez un administrateur.'}`);
+        } else {
+          setError(`Erreur lors du chargement: ${err.response?.data?.error || err.message}`);
+        }
+        
         setLoading(false);
       }
     };
 
     fetchStatistiques();
   }, [router]);
+
+  // ✅ FONCTION D'EXPORT FONCTIONNELLE
+  const exportStatistics = async (format = 'excel') => {
+    setExporting(true);
+    
+    try {
+      // Préparer les données à exporter
+      const exportData = {
+        date: new Date().toISOString(),
+        utilisateur: JSON.parse(localStorage.getItem('user') || '{}'),
+        statistiques: {
+          globales: statsGlobales,
+          parType: statsParType,
+          demographiques: statsDemographiques
+        }
+      };
+
+      if (format === 'excel') {
+        await exportToExcel(exportData);
+      } else if (format === 'pdf') {
+        await exportToPDF(exportData);
+      } else if (format === 'csv') {
+        await exportToCSV(exportData);
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
+      alert('Erreur lors de l\'export des statistiques');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ✅ EXPORT EXCEL FONCTIONNEL
+  const exportToExcel = async (data) => {
+    // Créer le contenu CSV (Excel peut lire les CSV)
+    let csvContent = '';
+    
+    // En-tête du rapport
+    csvContent += `Rapport Statistiques GED\n`;
+    csvContent += `Date d'export: ${new Date().toLocaleDateString('fr-FR')}\n`;
+    csvContent += `Exporté par: ${data.utilisateur.prenom} ${data.utilisateur.nom}\n\n`;
+
+    // Statistiques globales
+    if (data.statistiques.globales) {
+      csvContent += `STATISTIQUES GLOBALES\n`;
+      csvContent += `Total dossiers,${data.statistiques.globales.total}\n`;
+      csvContent += `\nRépartition par statut\n`;
+      Object.entries(data.statistiques.globales.parStatut || {}).forEach(([statut, count]) => {
+        csvContent += `${statut},${count}\n`;
+      });
+      
+      csvContent += `\nRépartition par sexe\n`;
+      Object.entries(data.statistiques.globales.parSexe || {}).forEach(([sexe, count]) => {
+        csvContent += `${sexe},${count}\n`;
+      });
+      
+      csvContent += `\nRépartition par âge\n`;
+      Object.entries(data.statistiques.globales.parAge || {}).forEach(([age, count]) => {
+        csvContent += `${age},${count}\n`;
+      });
+    }
+
+    // Statistiques par type
+    if (data.statistiques.parType?.typesDemandeStats) {
+      csvContent += `\n\nSTATISTIQUES PAR TYPE DE DEMANDE\n`;
+      Object.entries(data.statistiques.parType.typesDemandeStats).forEach(([type, stats]) => {
+        csvContent += `\n${type}\n`;
+        csvContent += `Total,${stats.total}\n`;
+        csvContent += `Statuts:\n`;
+        Object.entries(stats.parStatut || {}).forEach(([statut, count]) => {
+          csvContent += `  ${statut},${count}\n`;
+        });
+      });
+    }
+
+    // Données démographiques
+    if (data.statistiques.demographiques) {
+      csvContent += `\n\nDONNÉES DÉMOGRAPHIQUES\n`;
+      csvContent += `Âge moyen par type:\n`;
+      Object.entries(data.statistiques.demographiques.ageMoyenParType || {}).forEach(([type, age]) => {
+        csvContent += `${type},${Math.round(age * 10) / 10} ans\n`;
+      });
+    }
+
+    // Télécharger le fichier
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `statistiques_ged_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Export Excel terminé ! Le fichier a été téléchargé.');
+  };
+
+  // ✅ EXPORT PDF FONCTIONNEL (HTML vers PDF via impression)
+  const exportToPDF = async (data) => {
+    // Créer une nouvelle fenêtre avec le contenu formaté
+    const printWindow = window.open('', '_blank');
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Statistiques GED - ${new Date().toLocaleDateString('fr-FR')}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+            .section { margin-bottom: 30px; }
+            .section h2 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+            .stat-card { border: 1px solid #ddd; padding: 15px; border-radius: 5px; }
+            .stat-number { font-size: 2em; font-weight: bold; color: #3b82f6; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            .footer { margin-top: 50px; text-align: center; font-size: 0.9em; color: #666; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Rapport Statistiques GED</h1>
+            <p>Date d'export: ${new Date().toLocaleDateString('fr-FR')}</p>
+            <p>Exporté par: ${data.utilisateur.prenom || ''} ${data.utilisateur.nom || ''}</p>
+          </div>
+
+          <div class="section">
+            <h2>Statistiques Globales</h2>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-number">${data.statistiques.globales?.total || 0}</div>
+                <div>Total dossiers</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-number">${data.statistiques.globales?.parStatut?.APPROUVE || 0}</div>
+                <div>Approuvés</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-number">${data.statistiques.globales?.parStatut?.REJETE || 0}</div>
+                <div>Rejetés</div>
+              </div>
+            </div>
+
+            <h3>Répartition par statut</h3>
+            <table>
+              <thead>
+                <tr><th>Statut</th><th>Nombre</th></tr>
+              </thead>
+              <tbody>
+                ${Object.entries(data.statistiques.globales?.parStatut || {}).map(([statut, count]) => 
+                  `<tr><td>${statut}</td><td>${count}</td></tr>`
+                ).join('')}
+              </tbody>
+            </table>
+
+            <h3>Répartition par sexe</h3>
+            <table>
+              <thead>
+                <tr><th>Sexe</th><th>Nombre</th></tr>
+              </thead>
+              <tbody>
+                ${Object.entries(data.statistiques.globales?.parSexe || {}).map(([sexe, count]) => 
+                  `<tr><td>${sexe}</td><td>${count}</td></tr>`
+                ).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          ${data.statistiques.parType?.typesDemandeStats ? `
+          <div class="section">
+            <h2>Statistiques par Type de Demande</h2>
+            ${Object.entries(data.statistiques.parType.typesDemandeStats).map(([type, stats]) => `
+              <h3>${type}</h3>
+              <p><strong>Total:</strong> ${stats.total}</p>
+              <table>
+                <thead>
+                  <tr><th>Statut</th><th>Nombre</th></tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(stats.parStatut || {}).map(([statut, count]) => 
+                    `<tr><td>${statut}</td><td>${count}</td></tr>`
+                  ).join('')}
+                </tbody>
+              </table>
+            `).join('')}
+          </div>
+          ` : ''}
+
+          <div class="footer">
+            <p>Rapport généré automatiquement par le système GED</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Attendre que le contenu soit chargé puis ouvrir la boîte de dialogue d'impression
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+    
+    alert('Export PDF lancé ! Utilisez la boîte de dialogue d\'impression pour sauvegarder en PDF.');
+  };
+
+  // ✅ EXPORT CSV SIMPLE
+  const exportToCSV = async (data) => {
+    let csvContent = 'Type,Statut,Nombre\n';
+    
+    // Ajouter les données globales
+    Object.entries(data.statistiques.globales?.parStatut || {}).forEach(([statut, count]) => {
+      csvContent += `Global,${statut},${count}\n`;
+    });
+
+    // Ajouter les données par type
+    if (data.statistiques.parType?.typesDemandeStats) {
+      Object.entries(data.statistiques.parType.typesDemandeStats).forEach(([type, stats]) => {
+        Object.entries(stats.parStatut || {}).forEach(([statut, count]) => {
+          csvContent += `${type},${statut},${count}\n`;
+        });
+      });
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `statistiques_simple_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Export CSV terminé !');
+  };
+  // Remplacez votre fonction exportCandidatesByType existante par celle-ci :
+
+const exportCandidatesByType = async (typeLibelle, format = 'excel') => {
+  setExportingType(typeLibelle);
+  
+  try {
+    const token = localStorage.getItem('token');
+    const candidats = candidatsApprouves[typeLibelle] || [];
+    
+    if (candidats.length === 0) {
+      alert('Aucun candidat approuvé pour ce type de demande');
+      return;
+    }
+
+    const exportData = {
+      date: new Date().toISOString(),
+      utilisateur: JSON.parse(localStorage.getItem('user') || '{}'),
+      typeLibelle: typeLibelle,
+      candidats: candidats
+    };
+
+    if (format === 'excel') {
+      await exportCandidatsToExcel(exportData);
+    } else if (format === 'csv') {
+      await exportCandidatsToCSV(exportData);
+    } else if (format === 'pdf') {
+      await exportCandidatsToPDF(exportData);  // ← LIGNE AJOUTÉE
+    }
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'export:', error);
+    alert('Erreur lors de l\'export des candidats');
+  } finally {
+    setExportingType(null);
+  }
+};
+
+  // Export Excel pour candidats
+  const exportCandidatsToExcel = async (data) => {
+    let csvContent = '';
+    
+    // En-tête du rapport
+    csvContent += `Liste des Candidats Approuvés - ${data.typeLibelle}\n`;
+    csvContent += `Date d'export: ${new Date().toLocaleDateString('fr-FR')}\n`;
+    csvContent += `Exporté par: ${data.utilisateur.prenom} ${data.utilisateur.nom}\n`;
+    csvContent += `Nombre de candidats: ${data.candidats.length}\n\n`;
+
+    // En-têtes du tableau
+    csvContent += `Numéro Dossier,Nom,Prénom,Sexe,Âge,Date de création\n`;
+    
+    // Données des candidats
+    data.candidats.forEach(candidat => {
+      csvContent += `${candidat.numeroDossier || ''},`;
+      csvContent += `${candidat.nom || ''},`;
+      csvContent += `${candidat.prenom || ''},`;
+      csvContent += `${candidat.sexe || ''},`;
+      csvContent += `${candidat.age || ''},`;
+      csvContent += `${candidat.dateCreation ? new Date(candidat.dateCreation).toLocaleDateString('fr-FR') : ''}\n`;
+    });
+
+    // Télécharger le fichier
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `candidats_${data.typeLibelle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Export Excel terminé ! Le fichier a été téléchargé.');
+  };
+
+  // Export CSV pour candidats
+  const exportCandidatsToCSV = async (data) => {
+    let csvContent = 'Numéro Dossier,Nom,Prénom,Sexe,Âge,Date de création\n';
+    
+    data.candidats.forEach(candidat => {
+      csvContent += `${candidat.numeroDossier || ''},`;
+      csvContent += `${candidat.nom || ''},`;
+      csvContent += `${candidat.prenom || ''},`;
+      csvContent += `${candidat.sexe || ''},`;
+      csvContent += `${candidat.age || ''},`;
+      csvContent += `${candidat.dateCreation ? new Date(candidat.dateCreation).toLocaleDateString('fr-FR') : ''}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `candidats_${data.typeLibelle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Export CSV terminé !');
+  };
+
+
+  // Export PDF pour candidats par type
+// Gardez SEULEMENT cette version de la fonction (supprimez les autres)
+
+const exportCandidatsToPDF = async (data) => {
+  const printWindow = window.open('', '_blank');
+  
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Liste Candidats Approuvés - ${data.typeLibelle}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+          .header h1 { color: #333; margin-bottom: 10px; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 12px 8px; text-align: left; }
+          th { background-color: #343a40; color: white; font-weight: bold; }
+          tr:nth-child(even) { background-color: #f8f9fa; }
+          .sexe-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; }
+          .sexe-m { background-color: #007bff; }
+          .sexe-f { background-color: #e83e8c; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Liste des Candidats Approuvés</h1>
+          <h2 style="color: #007bff; margin: 10px 0;">${data.typeLibelle}</h2>
+          <p>Date d'export: ${new Date().toLocaleDateString('fr-FR')}</p>
+          <p>Exporté par: ${data.utilisateur.prenom || ''} ${data.utilisateur.nom || ''}</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Numéro Dossier</th>
+              <th>Nom</th>
+              <th>Prénom</th>
+              <th>Sexe</th>
+              <th>Âge</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.candidats.map((candidat) => `
+              <tr>
+                <td><strong>${candidat.numeroDossier || '-'}</strong></td>
+                <td>${candidat.nom || '-'}</td>
+                <td>${candidat.prenom || '-'}</td>
+                <td>
+                  <span class="sexe-badge ${candidat.sexe === 'MASCULIN' ? 'sexe-m' : candidat.sexe === 'FEMININ' ? 'sexe-f' : ''}">
+                    ${candidat.sexe === 'MASCULIN' ? 'M' : candidat.sexe === 'FEMININ' ? 'F' : '-'}
+                  </span>
+                </td>
+                <td>${candidat.age || '-'} ans</td>
+                <td>${candidat.dateCreation ? new Date(candidat.dateCreation).toLocaleDateString('fr-FR') : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #666;">
+          <p>Document généré automatiquement par le système GED</p>
+          <p>Type: ${data.typeLibelle} | Total: ${data.candidats.length} candidat(s)</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+  
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 500);
+  
+  alert('Export PDF lancé ! Utilisez la boîte de dialogue d\'impression pour sauvegarder en PDF.');
+};
+
+  // ✅ NOUVEAU: Export PDF pour candidats - Version corrigée
+  
 
   // Transformation des données pour les graphiques
   const transformStatutData = (parStatut) => {
@@ -79,7 +591,6 @@ export default function Statistiques() {
   };
 
   const transformSexeData = (parSexe) => {
-    // ✅ Filtrer pour enlever "AUTRE"
     return Object.entries(parSexe || {})
       .filter(([sexe, count]) => sexe !== 'AUTRE')
       .map(([sexe, count]) => ({
@@ -90,10 +601,8 @@ export default function Statistiques() {
   };
 
   const transformAgeData = (parAge) => {
-    // ✅ Définir l'ordre correct des tranches d'âge
     const ordreCorrect = ["18-25", "26-35", "36-45", "46-55", "56+"];
     
-    // Créer un objet ordonné selon l'ordre souhaité
     return ordreCorrect.map(tranche => ({
       tranche,
       nombre: parAge[tranche] || 0
@@ -129,7 +638,7 @@ export default function Statistiques() {
         <div className="text-center">
           <svg className="animate-spin h-12 w-12 text-blue-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
           <p className="text-gray-600">Chargement des statistiques...</p>
         </div>
@@ -140,8 +649,36 @@ export default function Statistiques() {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto mt-8 p-6">
-        <div className="bg-red-50 p-4 rounded-md border border-red-200">
-          <p className="text-red-600">{error}</p>
+        <div className="bg-red-50 p-6 rounded-md border border-red-200">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Erreur d'accès aux statistiques
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+                <div className="mt-4">
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="bg-red-100 px-4 py-2 rounded-md text-red-800 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    Réessayer
+                  </button>
+                  <button
+                    onClick={() => router.push('/admin')}
+                    className="ml-3 bg-gray-100 px-4 py-2 rounded-md text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  >
+                    Retour à l'accueil
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -172,6 +709,12 @@ export default function Statistiques() {
           id="demographiques"
           label="Données démographiques"
           active={ongletActif === 'demographiques'}
+          onClick={setOngletActif}
+        />
+        <TabButton
+          id="candidats-approuves"
+          label="Candidats approuvés"
+          active={ongletActif === 'candidats-approuves'}
           onClick={setOngletActif}
         />
       </div>
@@ -276,7 +819,7 @@ export default function Statistiques() {
                 <h3 className="text-xl font-semibold mb-6 text-gray-800">{typeLabel}</h3>
                 
                 {/* Cartes récapitulatives pour ce type */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                   <StatCard
                     title="Total"
                     value={typeStats.total}
@@ -296,6 +839,11 @@ export default function Statistiques() {
                     title="Rejetés"
                     value={typeStats.parStatut.REJETE || 0}
                     color="red"
+                  />
+                  <StatCard
+                    title="Candidats retenus"
+                    value={typeStats.nombreCandidatsApprouves || 0}
+                    color="green"
                   />
                 </div>
 
@@ -422,80 +970,207 @@ export default function Statistiques() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      )}
 
-          {/* Tableau récapitulatif */}
+      {/* ✅ NOUVEL ONGLET : Candidats approuvés */}
+      {ongletActif === 'candidats-approuves' && (
+        <div className="space-y-8">
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-6">Tableau récapitulatif</h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type de demande
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total dossiers
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      % Hommes
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      % Femmes
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Âge moyen
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {Object.entries(statsDemographiques.repartitionSexeParType || {}).map(([typeLabel, sexeStats]) => {
-                    const total = (sexeStats.MASCULIN || 0) + (sexeStats.FEMININ || 0);
-                    const pctHommes = total > 0 ? Math.round((sexeStats.MASCULIN || 0) / total * 100) : 0;
-                    const pctFemmes = total > 0 ? Math.round((sexeStats.FEMININ || 0) / total * 100) : 0;
-                    const ageMoyen = statsDemographiques.ageMoyenParType?.[typeLabel] || 0;
+            <h3 className="text-xl font-semibold mb-6">Liste des candidats approuvés par type de demande</h3>
+            
+            {/* Vérifier si les données sont disponibles */}
+            {Object.entries(candidatsApprouves).length === 0 ? (
+              <div className="text-center py-8">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                  <div className="flex items-center justify-center">
+                    <svg className="h-8 w-8 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div>
+                      <h4 className="text-lg font-medium text-yellow-800">Aucun candidat approuvé trouvé</h4>
+                      <p className="text-yellow-700 mt-1">
+                        Il n'y a actuellement aucun candidat avec un dossier approuvé, ou cette fonctionnalité n'est pas encore disponible.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {Object.entries(candidatsApprouves).map(([typeLabel, candidats]) => (
+                  <div key={typeLabel} className="border border-gray-200 rounded-lg p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-lg font-semibold text-gray-800">{typeLabel}</h4>
+                      <div className="flex space-x-2">
+                        <span className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
+                          {candidats.length} candidat{candidats.length > 1 ? 's' : ''} approuvé{candidats.length > 1 ? 's' : ''}
+                        </span>
+                        <button
+                          onClick={() => exportCandidatesByType(typeLabel, 'excel')}
+                          disabled={exportingType === typeLabel}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        >
+                          {exportingType === typeLabel ? (
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                          ) : (
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          )}
+                          Excel
+                        </button>
+                        <button
+                          onClick={() => exportCandidatesByType(typeLabel, 'csv')}
+                          disabled={exportingType === typeLabel}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        >
+                          {exportingType === typeLabel ? (
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                          ) : (
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          )}
+                          CSV
+                        </button>
+                        <button
+                          onClick={() => exportCandidatesByType(typeLabel, 'pdf')}
+                          disabled={exportingType === typeLabel}
+                          className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        >
+                          {exportingType === typeLabel ? (
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                          ) : (
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                          PDF
+                        </button>
+                      </div>
+                    </div>
                     
-                    return (
-                      <tr key={typeLabel}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {typeLabel}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {total}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {pctHommes}%
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {pctFemmes}%
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {Math.round(ageMoyen * 10) / 10} ans
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    {candidats.length === 0 ? (
+                      <div className="text-center py-4">
+                        <p className="text-gray-500">Aucun candidat approuvé pour ce type de demande</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Numéro Dossier
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Nom
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Prénom
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Sexe
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Âge
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Date
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {candidats.map((candidat, index) => (
+                              <tr key={candidat.id || index} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {candidat.numeroDossier || '-'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {candidat.nom || '-'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {candidat.prenom || '-'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    candidat.sexe === 'MASCULIN' 
+                                      ? 'bg-blue-100 text-blue-800' 
+                                      : candidat.sexe === 'FEMININ'
+                                      ? 'bg-pink-100 text-pink-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {candidat.sexe === 'MASCULIN' ? 'M' : candidat.sexe === 'FEMININ' ? 'F' : '-'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {candidat.age || '-'} ans
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {candidat.dateCreation ? new Date(candidat.dateCreation).toLocaleDateString('fr-FR') : '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Bouton d'export (optionnel) */}
-      <div className="mt-8 flex justify-end">
-        <button
-          onClick={() => {
-            console.log('Export des statistiques...');
-          }}
-          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-        >
-          <div className="flex items-center">
-            <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Exporter les statistiques
-          </div>
-        </button>
+      {/* ✅ BOUTONS D'EXPORT FONCTIONNELS RESTAURÉS */}
+      <div className="mt-8 flex justify-end space-x-3">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => exportStatistics('csv')}
+            disabled={exporting}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {exporting ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            ) : (
+              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            )}
+            Export CSV
+          </button>
+
+          <button
+            onClick={() => exportStatistics('excel')}
+            disabled={exporting}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {exporting ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            ) : (
+              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            )}
+            Export Excel
+          </button>
+
+          <button
+            onClick={() => exportStatistics('pdf')}
+            disabled={exporting}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {exporting ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            ) : (
+              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            )}
+            Export PDF
+          </button>
+        </div>
       </div>
     </div>
   );

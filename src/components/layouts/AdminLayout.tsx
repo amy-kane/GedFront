@@ -1,4 +1,4 @@
-// src/components/layouts/AdminLayout.tsx - Version de diagnostic
+// src/components/layouts/AdminLayout.tsx
 
 'use client';
 
@@ -21,6 +21,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<UserData | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -56,14 +57,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   
   const navigateToNotifications = () => router.push('/admin/notifications');
 
-  // ✅ CORRECTION : Navigation vers profil avec debug
   const navigateToProfile = () => {
-    console.log("🔍 Tentative de navigation vers profil");
-    console.log("📂 Route cible: /profil");
-    console.log("👤 Utilisateur actuel:", user);
-    
+    console.log("Navigation vers profil");
     try {
-      // Utiliser la route existante /profil
       router.push('/profil');
       console.log("✅ Navigation lancée vers /profil");
     } catch (error) {
@@ -71,22 +67,21 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     }
   };
 
-  // ✅ CORRECTION : Fonction de déconnexion avec debug
   const handleLogout = () => {
-    console.log("🚪 Tentative de déconnexion");
+    console.log("Tentative de déconnexion");
     
     try {
       if (window.confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
-        console.log("🧹 Nettoyage du localStorage");
+        console.log("Nettoyage du localStorage");
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('refreshToken');
         
-        console.log("🔄 Redirection vers /login");
+        console.log("Redirection vers /login");
         router.push('/login');
       }
     } catch (error) {
-      console.error('❌ Erreur lors de la déconnexion:', error);
+      console.error('Erreur lors de la déconnexion:', error);
       router.push('/login');
     }
   };
@@ -97,143 +92,240 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-800">GED</h1>
-        </div>
-        
-        <nav className="flex-1 px-4 pb-4">
-          <div className="space-y-1">
-            <NavItem 
-              icon={<HomeIcon />} 
-              text="Tableau de bord" 
-              active={isActive('/admin/dashboard')}
-              onClick={navigateToDashboard} 
-            />
-            <NavItem 
-              icon={<FolderIcon />} 
-              text="Dossiers" 
-              active={isActive('/admin/dossiers')}
-              onClick={navigateToFolders}
-            />
-            <NavItem 
-              icon={<BellIcon />} 
-              text="Notifications" 
-              active={isActive('/admin/notifications')}
-              onClick={navigateToNotifications}
-            />
-            <NavItem 
-              icon={<DocumentIcon />} 
-              text="Types de demande" 
-              active={isActive('/admin/types-demande')}
-              onClick={navigateToTypeDemandeManagement}
-            />
-            <NavItem 
-              icon={<UsersIcon />} 
-              text="Gestion des utilisateurs" 
-              active={isActive('/admin/users')}
-              onClick={navigateToUserManagement}
-            />
-            <NavItem 
-              icon={<ChartIcon />} 
-              text="Statistiques" 
-              active={isActive('/admin/statistiques')}
-              onClick={navigateToStatistics}
-            />
-          </div>
-        </nav>
-        
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-              </svg>
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="flex flex-col gap-4 h-full">
+        {/* Header - Rectangle qui prend toute la largeur en haut */}
+        <header className="bg-white rounded-xl shadow-lg">
+          <div className="flex items-center justify-between px-6 py-4">
+            {/* Logo et Page Title */}
+            <div className="flex items-center space-x-4">
+              {/* Logo */}
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Section Informatique</h1>
+                  <p className="text-sm text-gray-500">Gestion Électronique de Documents</p>
+                </div>
+              </div>
+              
+              {/* Séparateur */}
+              <div className="h-8 w-px bg-gray-300 mx-4"></div>
+              
+              {/* Page Title - Dynamique selon la route */}
+              <h2 className="text-lg font-semibold text-gray-700">
+                {pathname?.includes('/dashboard') && 'Accueil'}
+                {pathname?.includes('/dossiers') && 'Gestion des dossiers'}
+                {pathname?.includes('/notifications') && 'Notifications'}
+                {pathname?.includes('/types-demande') && 'Types de demande'}
+                {pathname?.includes('/users') && 'Gestion des utilisateurs'}
+                {pathname?.includes('/statistiques') && 'Statistiques'}
+                {!pathname?.includes('/admin/') && 'Administration'}
+              </h2>
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">
-                {user ? `${user.prenom} ${user.nom}` : 'Système Administrateur'}
-              </span>
-              <span className="text-xs text-gray-500">
-                {user?.role || 'ADMIN'}
-              </span>
-              <span className="text-xs text-gray-500 mt-1">
-                {user?.email || 'admin@example.com'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </aside>
-      
-      {/* Main Content */}
-      <main className="flex-1 bg-gray-50 overflow-auto">
-        <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6">
-          <h2 className="text-xl font-semibold text-gray-800">Administration</h2>
-          <div className="flex items-center space-x-4">
-            {/* ✅ BOUTON PROFIL avec debug et styles améliorés */}
-            <button 
-              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all duration-200 border border-transparent hover:border-blue-200"
-              onClick={navigateToProfile}
-              title="Mon profil"
-              onMouseEnter={() => console.log("🖱️ Survol du bouton profil")}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-              </svg>
-            </button>
             
-            <div className="flex items-center">
-              <span className="mr-2 text-sm font-medium">
-                {user ? `${user.prenom} ${user.nom} (${user.role})` : 'Système Administrateur (ADMIN)'}
-              </span>
-              <button 
-                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-all duration-200"
-                onClick={handleLogout}
-                title="Se déconnecter"
-              >
-                <LogoutIcon className="h-5 w-5" />
+            {/* Header Actions */}
+            <div className="flex items-center space-x-4">
+              {/* Notifications Badge */}
+              <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                <BellIcon className="h-6 w-6" />
+                <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  3
+                </span>
               </button>
+
+              {/* Divider */}
+              <div className="h-6 w-px bg-gray-300"></div>
+
+              {/* User Menu */}
+              <div className="flex items-center space-x-3">
+                <div className="hidden md:block text-right">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user ? `${user.prenom} ${user.nom}` : 'Administrateur'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {user?.email || 'admin@ged.com'}
+                  </p>
+                </div>
+
+                {/* Profile Button */}
+                <button 
+                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200 border border-transparent hover:border-blue-200"
+                  onClick={navigateToProfile}
+                  title="Mon profil"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                </button>
+
+                {/* Logout Button */}
+                <button 
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200"
+                  onClick={handleLogout}
+                  title="Se déconnecter"
+                >
+                  <LogoutIcon className="h-6 w-6" />
+                </button>
+              </div>
             </div>
           </div>
         </header>
-        
-        <div className="flex-1">
-          {children}
+
+        {/* Content Area avec Sidebar et Main */}
+        <div className="flex gap-4 flex-1">
+          {/* Sidebar Navigation - Rectangle séparé */}
+          <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-white rounded-xl shadow-lg transition-all duration-300 flex flex-col`}>
+            {/* Toggle Button en haut de la sidebar */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              {!sidebarCollapsed && (
+                <h3 className="text-lg font-semibold text-gray-800">Navigation</h3>
+              )}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className={`h-4 w-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} 
+                  viewBox="0 0 20 20" 
+                  fill="currentColor"
+                >
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Navigation Menu */}
+            <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
+              <NavItem 
+                icon={<HomeIcon />} 
+                text="Accueil" 
+                active={isActive('/admin/dashboard')}
+                onClick={navigateToDashboard}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem 
+                icon={<FolderIcon />} 
+                text="Dossiers" 
+                active={isActive('/admin/dossiers')}
+                onClick={navigateToFolders}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem 
+                icon={<BellIcon />} 
+                text="Notifications" 
+                active={isActive('/admin/notifications')}
+                onClick={navigateToNotifications}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem 
+                icon={<DocumentIcon />} 
+                text="Types de demande" 
+                active={isActive('/admin/types-demande')}
+                onClick={navigateToTypeDemandeManagement}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem 
+                icon={<UsersIcon />} 
+                text="Gestion des utilisateurs" 
+                active={isActive('/admin/users')}
+                onClick={navigateToUserManagement}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem 
+                icon={<ChartIcon />} 
+                text="Statistiques" 
+                active={isActive('/admin/statistiques')}
+                onClick={navigateToStatistics}
+                collapsed={sidebarCollapsed}
+              />
+            </nav>
+            
+            {/* User Info dans la sidebar */}
+            <div className="border-t border-gray-200 p-4 bg-gray-50 rounded-b-xl">
+              {!sidebarCollapsed ? (
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-white font-semibold text-sm">
+                      {user ? `${user.prenom?.[0]}${user.nom?.[0]}` : 'A'}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {user ? `${user.prenom} ${user.nom}` : 'Administrateur'}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {user?.role || 'ADMIN'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-center">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-semibold text-xs">
+                      {user ? `${user.prenom?.[0]}${user.nom?.[0]}` : 'A'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+          
+          {/* Page Content - Rectangle séparé */}
+          <main className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="h-full overflow-auto">
+              {children}
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
     </div>
   );
 };
 
-// Définition du type pour les props de NavItem
+// Composant NavItem mis à jour pour supporter le collapse
 type NavItemProps = {
   icon: React.ReactNode;
   text: string;
   active?: boolean;
   onClick?: (e?: React.MouseEvent) => void;
+  collapsed?: boolean;
 };
 
-// Composant NavItem pour le menu latéral
-const NavItem = ({ icon, text, active = false, onClick }: NavItemProps) => (
-  <button 
-    onClick={(e) => {
-      console.log(`NavItem clicked: ${text}`);
-      if (onClick) onClick(e);
-    }}
-    className={`flex items-center w-full px-3 py-2 text-sm font-medium text-left rounded-md transition-colors duration-200 ${
-      active 
-        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
-        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-    }`}
-  >
-    <span className="mr-3">{icon}</span>
-    {text}
-  </button>
+const NavItem = ({ icon, text, active = false, onClick, collapsed = false }: NavItemProps) => (
+  <div className="relative group">
+    <button 
+      onClick={(e) => {
+        console.log(`NavItem clicked: ${text}`);
+        if (onClick) onClick(e);
+      }}
+      className={`flex items-center w-full px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+        active 
+          ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700' 
+          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+      } ${collapsed ? 'justify-center' : ''}`}
+      title={collapsed ? text : undefined}
+    >
+      <span className={`${active ? 'text-blue-700' : 'text-gray-500'} group-hover:text-gray-700`}>
+        {icon}
+      </span>
+      {!collapsed && <span className="ml-3 truncate">{text}</span>}
+    </button>
+    
+    {/* Tooltip pour sidebar collapsed */}
+    {collapsed && (
+      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+        {text}
+      </div>
+    )}
+  </div>
 );
 
-// Icônes (identiques à votre code existant)
+// Icônes
 const HomeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
     <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
