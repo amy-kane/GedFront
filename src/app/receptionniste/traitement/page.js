@@ -11,7 +11,8 @@ export default function TraitementPage() {
   const [documents, setDocuments] = useState([]);
   const [documentsRequis, setDocumentsRequis] = useState([]);
   const [notes, setNotes] = useState('');
-
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   useEffect(() => {
     fetchDossiers();
   }, []);
@@ -111,23 +112,25 @@ export default function TraitementPage() {
         });
       }
       
+      // Afficher le message de succès
+      setSuccessMessage(`Le dossier ${selectedDossier.numeroDossier} a été marqué comme COMPLET avec succès !`);
+      setErrorMessage('');
+      
       // Rafraîchir la liste
       fetchDossiers();
       setSelectedDossier(null);
-      alert("Le dossier a été marqué comme COMPLET");
+      
+      // Masquer le message après 5 secondes
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
       console.error("Erreur lors du changement de statut:", error);
-      alert("Erreur lors du changement de statut: " + (error.response?.data?.message || error.message));
+      setErrorMessage("Erreur lors du changement de statut: " + (error.response?.data?.message || error.message));
+      setSuccessMessage('');
     }
   };
 
   // Modifiez la fonction marquerIncomplet dans page.js
   const marquerIncomplet = async () => {
-    if (!notes.trim()) {
-      alert("Veuillez ajouter des notes expliquant pourquoi le dossier est incomplet");
-      return;
-    }
-    
     try {
       const token = localStorage.getItem('token');
       // Modification : utiliser les paramètres de requête pour le statut
@@ -137,18 +140,27 @@ export default function TraitementPage() {
         { headers: { 'Authorization': `Bearer ${token}` }}
       );
       
-      // Ajouter un commentaire avec les notes
-      await axios.post(`/api/dossiers/${selectedDossier.id}/commentaires`, {
-        contenu: notes
-      });
+      // Ajouter un commentaire avec les notes si elles existent
+      if (notes.trim()) {
+        await axios.post(`/api/dossiers/${selectedDossier.id}/commentaires`, {
+          contenu: notes
+        });
+      }
+      
+      // Afficher le message de succès
+      setSuccessMessage(`Le dossier ${selectedDossier.numeroDossier} a été marqué comme INCOMPLET avec succès !`);
+      setErrorMessage('');
       
       // Rafraîchir la liste
       fetchDossiers();
       setSelectedDossier(null);
-      alert("Le dossier a été marqué comme INCOMPLET");
+      
+      // Masquer le message après 5 secondes
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
       console.error("Erreur lors du changement de statut:", error);
-      alert("Erreur lors du changement de statut: " + (error.response?.data?.message || error.message));
+      setErrorMessage("Erreur lors du changement de statut: " + (error.response?.data?.message || error.message));
+      setSuccessMessage('');
     }
   };
 
@@ -160,6 +172,61 @@ export default function TraitementPage() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Traitement des dossiers</h1>
+      
+      {/* Messages de succès et d'erreur */}
+      {successMessage && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-green-800">{successMessage}</p>
+            </div>
+            <div className="ml-auto pl-3">
+              <div className="-mx-1.5 -my-1.5">
+                <button 
+                  className="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-green-50 focus:ring-green-600"
+                  onClick={() => setSuccessMessage('')}
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {errorMessage && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-red-800">{errorMessage}</p>
+            </div>
+            <div className="ml-auto pl-3">
+              <div className="-mx-1.5 -my-1.5">
+                <button 
+                  className="inline-flex bg-red-50 rounded-md p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-red-50 focus:ring-red-600"
+                  onClick={() => setErrorMessage('')}
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Liste des dossiers */}
@@ -200,28 +267,28 @@ export default function TraitementPage() {
           {selectedDossier ? (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold">Dossier {selectedDossier.numeroDossier}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Dossier {selectedDossier.numeroDossier}</h2>
               </div>
               
               <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <p className="text-sm text-gray-600">Déposant</p>
-                    <p className="font-medium">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-gray-600 mb-1">Déposant</p>
+                    <p className="text-lg font-bold text-gray-900">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Type de demande</p>
-                    <p className="font-medium">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-gray-600 mb-1">Type de demande</p>
+                    <p className="text-lg font-bold text-gray-900">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Date de dépôt</p>
-                    <p className="font-medium">
-                      {new Date(selectedDossier.dateCreation).toLocaleDateString()} à {new Date(selectedDossier.dateCreation).toLocaleTimeString()}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-gray-600 mb-1">Date de dépôt</p>
+                    <p className="text-lg font-bold text-gray-900">
+                      {new Date(selectedDossier.dateCreation).toLocaleDateString('fr-FR')} à {new Date(selectedDossier.dateCreation).toLocaleTimeString('fr-FR')}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-medium">{selectedDossier.emailDeposant || "N/A"}</p>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-gray-600 mb-1">Email</p>
+                    <p className="text-lg font-bold text-blue-600 break-all">{selectedDossier.emailDeposant || "N/A"}</p>
                   </div>
                 </div>
                 

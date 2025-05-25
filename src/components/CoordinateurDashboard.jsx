@@ -12,10 +12,10 @@ const CoordinateurDashboard = () => {
   const [phases, setPhases] = useState([]);
   const [stats, setStats] = useState({
     complet: 0,
-    enCours: 0,
-    valide: 0,
-    refuse: 0
+    enCours: 0
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredDossiers, setFilteredDossiers] = useState([]);
   const [phaseDescription, setPhaseDescription] = useState('');
   const [phaseType, setPhaseType] = useState('DISCUSSION');
   const [showNewPhaseModal, setShowNewPhaseModal] = useState(false);
@@ -23,6 +23,28 @@ const CoordinateurDashboard = () => {
   const [prolongationJours, setProlongationJours] = useState(7);
   const [showProlongerPhaseModal, setShowProlongerPhaseModal] = useState(false);
   const [resultatsVote, setResultatsVote] = useState(null);
+  const [notification, setNotification] = useState(null);
+
+  // Fonction pour afficher une notification
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Fonction pour calculer les stats à partir des dossiers filtrés
+  const calculateStats = (dossiers) => {
+    const completCount = dossiers.filter(d => d.statut === 'COMPLET').length;
+    const enCoursCount = dossiers.filter(d => d.statut === 'EN_COURS').length;
+    
+    setStats({
+      complet: completCount,
+      enCours: enCoursCount
+    });
+    
+    console.log("=== STATS CALCULÉES ===");
+    console.log("COMPLET:", completCount);
+    console.log("EN_COURS:", enCoursCount);
+  };
 
   // Configurez axios pour inclure le token dans chaque requête
   useEffect(() => {
@@ -67,79 +89,29 @@ const CoordinateurDashboard = () => {
     fetchAllData();
   }, []);
 
-  // Fonction pour récupérer toutes les données
-  // Trouver et remplacer la fonction fetchAllData() par cette version améliorée avec déduplication
-const fetchAllData = async () => {
-  try {
-    setLoading(true);
-    
-    // Récupérer les statistiques uniquement
-    await fetchStats();
-    
-    // Récupérer les dossiers COMPLET et EN_COURS pour le coordinateur
-    const token = localStorage.getItem('token');
-    
-    const completResponse = await axios.get('/api/dossiers', {
-      params: { statut: 'COMPLET' },
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    const enCoursResponse = await axios.get('/api/dossiers', {
-      params: { statut: 'EN_COURS' },
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    // Extraire les données selon la structure de la réponse
-    const extractDossiers = (response) => {
-      if (response.data && typeof response.data === 'object') {
-        if (Array.isArray(response.data.content)) {
-          return response.data.content;
-        } else if (Array.isArray(response.data)) {
-          return response.data;
-        }
-      }
-      return [];
-    };
-    
-    // Extraire les dossiers des réponses
-    const completDossiers = extractDossiers(completResponse);
-    const enCoursDossiers = extractDossiers(enCoursResponse);
-    
-    // Ajouter une propriété pour identifier visuellement les dossiers
-    const taggedCompletDossiers = completDossiers.map(d => ({ ...d, listType: 'COMPLET' }));
-    const taggedEnCoursDossiers = enCoursDossiers.map(d => ({ ...d, listType: 'EN_COURS' }));
-    
-    // Fusionner les listes et dédupliquer par ID
-    const allDossiers = [...taggedCompletDossiers, ...taggedEnCoursDossiers];
-    
-    // Utiliser un Map pour dédupliquer par ID
-    const uniqueDossiersMap = new Map();
-    allDossiers.forEach(dossier => {
-      // On ne remplace un dossier existant que si le nouveau a un statut plus récent
-      // (EN_COURS est considéré plus récent que COMPLET)
-      if (!uniqueDossiersMap.has(dossier.id) || 
-          (dossier.listType === 'EN_COURS' && uniqueDossiersMap.get(dossier.id).listType === 'COMPLET')) {
-        uniqueDossiersMap.set(dossier.id, dossier);
-      }
-    });
-    
-    // Convertir le Map en tableau
-    const uniqueDossiers = Array.from(uniqueDossiersMap.values());
-    
-    console.log("Nombre de dossiers après déduplication:", uniqueDossiers.length);
-    setDossiers(uniqueDossiers);
-    setLoading(false);
-  } catch (error) {
-    console.error("Erreur lors de la récupération des données:", error);
-    setLoading(false);
-  }
-};
+  // Effet pour filtrer les dossiers selon le terme de recherche
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredDossiers(dossiers);
+    } else {
+      const filtered = dossiers.filter(dossier => 
+        dossier.numeroDossier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dossier.nomDeposant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dossier.prenomDeposant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dossier.typeDemande?.libelle?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredDossiers(filtered);
+    }
+  }, [searchTerm, dossiers]);
 
-  // Fonction pour récupérer les statistiques
-  const fetchStats = async () => {
+  // Nouvelle fonction qui coordonne toutes les requêtes
+  const fetchAllData = async () => {
     try {
+      setLoading(true);
+      
       const token = localStorage.getItem('token');
       
+      // Récupérer les dossiers COMPLET et EN_COURS pour le coordinateur
       const completResponse = await axios.get('/api/dossiers', {
         params: { statut: 'COMPLET' },
         headers: { 'Authorization': `Bearer ${token}` }
@@ -150,47 +122,55 @@ const fetchAllData = async () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      const valideResponse = await axios.get('/api/dossiers', {
-        params: { statut: 'VALIDE' },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const refuseResponse = await axios.get('/api/dossiers', {
-        params: { statut: 'REFUSE' },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      // Fonction pour extraire le nombre d'éléments
-      const getCount = (response) => {
+      // Extraire les données selon la structure de la réponse
+      const extractDossiers = (response) => {
         if (response.data && typeof response.data === 'object') {
-          if (typeof response.data.totalElements === 'number') {
-            return response.data.totalElements;
-          } else if (Array.isArray(response.data.content)) {
-            return response.data.content.length;
-          } else if (typeof response.data.numberOfElements === 'number') {
-            return response.data.numberOfElements;
+          if (Array.isArray(response.data.content)) {
+            return response.data.content;
+          } else if (Array.isArray(response.data)) {
+            return response.data;
           }
-        } else if (Array.isArray(response.data)) {
-          return response.data.length;
         }
-        return 0;
+        return [];
       };
       
-      // Extraire les valeurs
-      const completCount = getCount(completResponse);
-      const enCoursCount = getCount(enCoursResponse);
-      const valideCount = getCount(valideResponse);
-      const refuseCount = getCount(refuseResponse);
+      // Extraire les dossiers des réponses
+      const completDossiers = extractDossiers(completResponse);
+      const enCoursDossiers = extractDossiers(enCoursResponse);
       
-      // Mettre à jour les stats
-      setStats({
-        complet: completCount,
-        enCours: enCoursCount,
-        valide: valideCount,
-        refuse: refuseCount
+      // Ajouter une propriété pour identifier visuellement les dossiers
+      const taggedCompletDossiers = completDossiers.map(d => ({ ...d, listType: 'COMPLET' }));
+      const taggedEnCoursDossiers = enCoursDossiers.map(d => ({ ...d, listType: 'EN_COURS' }));
+      
+      // Fusionner les listes et dédupliquer par ID
+      const allDossiers = [...taggedCompletDossiers, ...taggedEnCoursDossiers];
+      
+      // Utiliser un Map pour dédupliquer par ID
+      const uniqueDossiersMap = new Map();
+      allDossiers.forEach(dossier => {
+        // On ne remplace un dossier existant que si le nouveau a un statut plus récent
+        // (EN_COURS est considéré plus récent que COMPLET)
+        if (!uniqueDossiersMap.has(dossier.id) || 
+            (dossier.listType === 'EN_COURS' && uniqueDossiersMap.get(dossier.id).listType === 'COMPLET')) {
+          uniqueDossiersMap.set(dossier.id, dossier);
+        }
       });
+      
+      // Convertir le Map en tableau et filtrer pour ne garder que COMPLET et EN_COURS
+      const uniqueDossiers = Array.from(uniqueDossiersMap.values())
+        .filter(dossier => ['COMPLET', 'EN_COURS'].includes(dossier.statut));
+      
+      console.log("Nombre de dossiers après déduplication et filtrage:", uniqueDossiers.length);
+      console.log("Dossiers filtrés:", uniqueDossiers.map(d => ({ id: d.id, numero: d.numeroDossier, statut: d.statut })));
+      
+      // Mettre à jour les dossiers et calculer les stats
+      setDossiers(uniqueDossiers);
+      setFilteredDossiers(uniqueDossiers);
+      calculateStats(uniqueDossiers);
+      setLoading(false);
     } catch (error) {
-      console.error("Erreur lors de la récupération des statistiques:", error);
+      console.error("Erreur lors de la récupération des données:", error);
+      setLoading(false);
     }
   };
 
@@ -223,13 +203,17 @@ const fetchAllData = async () => {
       const completDossiers = extractDossiers(completResponse);
       const enCoursDossiers = extractDossiers(enCoursResponse);
       
-      // Ajouter une propriété pour identifier visuellement les dossiers
+      // Ajouter une propriété pour identifier visuellement les dossiers et filtrer
       const allDossiers = [
         ...completDossiers.map(d => ({ ...d, listType: 'COMPLET' })),
         ...enCoursDossiers.map(d => ({ ...d, listType: 'EN_COURS' }))
-      ];
+      ].filter(dossier => ['COMPLET', 'EN_COURS'].includes(dossier.statut));
+      
+      console.log("Dossiers filtrés (fetchDossiers):", allDossiers.map(d => ({ numero: d.numeroDossier, statut: d.statut })));
       
       setDossiers(allDossiers);
+      setFilteredDossiers(allDossiers);
+      calculateStats(allDossiers);
       setLoading(false);
     } catch (error) {
       console.error("Erreur lors de la récupération des dossiers:", error);
@@ -295,7 +279,7 @@ const fetchAllData = async () => {
       }
     } catch (error) {
       console.error("Erreur lors de la consultation du dossier:", error);
-      alert("Erreur lors de la consultation du dossier");
+      showNotification("Erreur lors de la consultation du dossier", 'error');
     }
   };
 
@@ -304,7 +288,7 @@ const fetchAllData = async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        alert("Session expirée. Veuillez vous reconnecter.");
+        showNotification("Session expirée. Veuillez vous reconnecter.", 'error');
         return;
       }
       
@@ -332,9 +316,9 @@ const fetchAllData = async () => {
       console.error("Erreur lors de la prévisualisation du document:", error);
       
       if (error.response?.status === 403) {
-        alert("Accès refusé. Vous n'avez pas les permissions nécessaires pour prévisualiser ce document.");
+        showNotification("Accès refusé. Vous n'avez pas les permissions nécessaires pour prévisualiser ce document.", 'error');
       } else {
-        alert("Erreur lors de la prévisualisation du document: " + (error.response?.data?.message || error.message));
+        showNotification("Erreur lors de la prévisualisation du document: " + (error.response?.data?.message || error.message), 'error');
       }
     }
   };
@@ -343,7 +327,7 @@ const fetchAllData = async () => {
   const initierPhase = async () => {
     try {
       if (!phaseDescription.trim()) {
-        alert("Veuillez fournir une description pour la phase");
+        showNotification("Veuillez fournir une description pour la phase", 'error');
         return;
       }
       
@@ -361,16 +345,16 @@ const fetchAllData = async () => {
       // Fermer le modal et rafraîchir les données
       setShowNewPhaseModal(false);
       setPhaseDescription('');
-      alert(`Phase de ${phaseType.toLowerCase()} initiée avec succès`);
+      showNotification(`Phase de ${phaseType.toLowerCase()} initiée avec succès`, 'success');
       
       // Rafraîchir les données du dossier
       consulterDossier(selectedDossier.id);
       
       // Rafraîchir la liste des dossiers car le statut a changé
-      fetchDossiers();
+      fetchAllData();
     } catch (error) {
       console.error("Erreur lors de l'initiation de la phase:", error);
-      alert("Erreur lors de l'initiation de la phase: " + (error.response?.data?.message || error.message));
+      showNotification("Erreur lors de l'initiation de la phase: " + (error.response?.data?.message || error.message), 'error');
     }
   };
 
@@ -385,13 +369,13 @@ const fetchAllData = async () => {
       
       // Fermer le modal et rafraîchir les données
       setShowTerminerPhaseModal(false);
-      alert("Phase terminée avec succès");
+      showNotification("Phase terminée avec succès", 'success');
       
       // Rafraîchir les données du dossier
       consulterDossier(selectedDossier.id);
     } catch (error) {
       console.error("Erreur lors de la terminaison de la phase:", error);
-      alert("Erreur lors de la terminaison de la phase: " + (error.response?.data?.message || error.message));
+      showNotification("Erreur lors de la terminaison de la phase: " + (error.response?.data?.message || error.message), 'error');
     }
   };
 
@@ -399,7 +383,7 @@ const fetchAllData = async () => {
   const prolongerPhase = async () => {
     try {
       if (!prolongationJours || prolongationJours <= 0) {
-        alert("Veuillez spécifier un nombre de jours valide");
+        showNotification("Veuillez spécifier un nombre de jours valide", 'error');
         return;
       }
       
@@ -415,20 +399,68 @@ const fetchAllData = async () => {
       // Fermer le modal et rafraîchir les données
       setShowProlongerPhaseModal(false);
       setProlongationJours(7);
-      alert(`Phase prolongée de ${prolongationJours} jours`);
+      showNotification(`Phase prolongée de ${prolongationJours} jours`, 'success');
       
       // Rafraîchir les données du dossier
       consulterDossier(selectedDossier.id);
     } catch (error) {
       console.error("Erreur lors de la prolongation de la phase:", error);
-      alert("Erreur lors de la prolongation de la phase: " + (error.response?.data?.message || error.message));
+      showNotification("Erreur lors de la prolongation de la phase: " + (error.response?.data?.message || error.message), 'error');
     }
   };
 
   return (
     <div className="p-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-[9999] max-w-md w-full bg-white rounded-lg shadow-lg border-l-4 ${
+          notification.type === 'success' ? 'border-green-500' : 
+          notification.type === 'error' ? 'border-red-500' : 
+          notification.type === 'info' ? 'border-blue-500' : 'border-yellow-500'
+        } p-4 transform transition-all duration-300 ease-in-out`}>
+          <div className="flex">
+            <div className="flex-shrink-0">
+              {notification.type === 'success' && (
+                <CheckIcon className="h-5 w-5 text-green-400" />
+              )}
+              {notification.type === 'error' && (
+                <XCircleIcon className="h-5 w-5 text-red-400" />
+              )}
+              {notification.type === 'info' && (
+                <InfoIcon className="h-5 w-5 text-blue-400" />
+              )}
+              {notification.type === 'warning' && (
+                <ExclamationIcon className="h-5 w-5 text-yellow-400" />
+              )}
+            </div>
+            <div className="ml-3 w-0 flex-1 pt-0.5">
+              <p className={`text-sm font-medium ${
+                notification.type === 'success' ? 'text-green-800' : 
+                notification.type === 'error' ? 'text-red-800' : 
+                notification.type === 'info' ? 'text-blue-800' : 'text-yellow-800'
+              }`}>
+                {notification.message}
+              </p>
+            </div>
+            <div className="ml-4 flex-shrink-0 flex">
+              <button
+                className={`inline-flex rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  notification.type === 'success' ? 'focus:ring-green-500' : 
+                  notification.type === 'error' ? 'focus:ring-red-500' : 
+                  notification.type === 'info' ? 'focus:ring-blue-500' : 'focus:ring-yellow-500'
+                }`}
+                onClick={() => setNotification(null)}
+              >
+                <span className="sr-only">Fermer</span>
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats Cards - Seulement COMPLET et EN_COURS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <StatCard 
           icon={<DocumentsIcon className="h-10 w-10 text-blue-500" />} 
           title="Dossiers complets" 
@@ -441,18 +473,22 @@ const fetchAllData = async () => {
           value={stats.enCours.toString()}
           color="bg-purple-50"
         />
-        <StatCard 
-          icon={<CheckDocumentIcon className="h-10 w-10 text-green-500" />} 
-          title="Dossiers validés" 
-          value={stats.valide.toString()}
-          color="bg-green-50"
-        />
-        <StatCard 
-          icon={<RejectDocumentIcon className="h-10 w-10 text-red-500" />} 
-          title="Dossiers refusés" 
-          value={stats.refuse.toString()}
-          color="bg-red-50"
-        />
+      </div>
+      
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Rechercher un dossier..." 
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <SearchIcon className="h-5 w-5 text-gray-400" />
+          </div>
+        </div>
       </div>
       
       {/* Titre principal */}
@@ -487,17 +523,20 @@ const fetchAllData = async () => {
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-3 py-4 text-center">
-                  Chargement des dossiers...
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
+                    Chargement des dossiers...
+                  </div>
                 </td>
               </tr>
-            ) : dossiers.length === 0 ? (
+            ) : filteredDossiers.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 py-4 text-center">
-                  Aucun dossier à traiter
+                  {searchTerm ? 'Aucun dossier trouvé pour cette recherche' : 'Aucun dossier à traiter'}
                 </td>
               </tr>
             ) : (
-              dossiers.map((dossier) => (
+              filteredDossiers.map((dossier) => (
                 <tr key={dossier.id} className={`hover:bg-gray-50 ${dossier.listType === 'EN_COURS' ? 'bg-purple-50' : ''}`}>
                   <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {dossier.numeroDossier}
@@ -509,7 +548,7 @@ const fetchAllData = async () => {
                     {dossier.nomDeposant} {dossier.prenomDeposant}
                   </td>
                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(dossier.dateCreation).toLocaleDateString()}
+                    {new Date(dossier.dateCreation).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="px-3 py-4 whitespace-nowrap">
                     <StatusBadge status={dossier.statut} />
@@ -547,8 +586,8 @@ const fetchAllData = async () => {
       {/* Section détails du dossier sélectionné */}
       {selectedDossier && (
         <div className="bg-white rounded-lg shadow overflow-hidden p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">
               Détails du dossier : {selectedDossier.numeroDossier}
             </h3>
             <button 
@@ -559,23 +598,23 @@ const fetchAllData = async () => {
             </button>
           </div>
           
-          {/* Informations du dossier */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <p className="text-sm text-gray-600">Déposant</p>
-              <p className="font-medium">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
+          {/* Informations du dossier avec style amélioré */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Déposant</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Type de demande</p>
-              <p className="font-medium">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Type de demande</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Adresse</p>
-              <p className="font-medium">{selectedDossier.adresseDeposant || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Adresse</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.adresseDeposant || "N/A"}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Email</p>
-              <p className="font-medium">{selectedDossier.emailDeposant || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Email</p>
+              <p className="text-lg font-bold text-blue-600 break-all">{selectedDossier.emailDeposant || "N/A"}</p>
             </div>
           </div>
           
@@ -612,7 +651,7 @@ const fetchAllData = async () => {
               </div>
               <p className="text-sm text-gray-700 mb-2">{activePhase.description}</p>
               <p className="text-xs text-gray-500">
-                Démarrée le {new Date(activePhase.dateDebut).toLocaleDateString()} à {new Date(activePhase.dateDebut).toLocaleTimeString()}
+                Démarrée le {new Date(activePhase.dateDebut).toLocaleDateString('fr-FR')} à {new Date(activePhase.dateDebut).toLocaleTimeString()}
               </p>
               
               {/* Afficher les résultats du vote si c'est une phase de vote */}
@@ -672,8 +711,8 @@ const fetchAllData = async () => {
                           </p>
                           <p className="text-sm text-gray-500">{phase.description}</p>
                           <p className="text-xs text-gray-500">
-                            Du {new Date(phase.dateDebut).toLocaleDateString()}
-                            {phase.dateFin && ` au ${new Date(phase.dateFin).toLocaleDateString()}`}
+                            Du {new Date(phase.dateDebut).toLocaleDateString('fr-FR')}
+                            {phase.dateFin && ` au ${new Date(phase.dateFin).toLocaleDateString('fr-FR')}`}
                           </p>
                         </div>
                         {phase.type === 'VOTE' && (
@@ -686,10 +725,10 @@ const fetchAllData = async () => {
                                   headers: { 'Authorization': `Bearer ${token}` }
                                 });
                                 
-                                alert(`Résultats du vote:\nFavorable: ${resultatsResponse.data.FAVORABLE || 0}\nDéfavorable: ${resultatsResponse.data.DEFAVORABLE || 0}\nComplément requis: ${resultatsResponse.data.COMPLEMENT_REQUIS || 0}`);
+                                showNotification(`Résultats du vote:\nFavorable: ${resultatsResponse.data.FAVORABLE || 0}\nDéfavorable: ${resultatsResponse.data.DEFAVORABLE || 0}\nComplément requis: ${resultatsResponse.data.COMPLEMENT_REQUIS || 0}`, 'info');
                               } catch (error) {
                                 console.error("Erreur lors de la récupération des résultats:", error);
-                                alert("Erreur lors de la récupération des résultats");
+                                showNotification("Erreur lors de la récupération des résultats", 'error');
                               }
                             }}
                           >
@@ -759,8 +798,12 @@ const fetchAllData = async () => {
       
       {/* Modal pour créer une nouvelle phase */}
       {showNewPhaseModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)'
+        }}>
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Démarrer une nouvelle phase</h3>
             </div>
@@ -821,8 +864,12 @@ const fetchAllData = async () => {
       
       {/* Modal pour terminer une phase */}
       {showTerminerPhaseModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)'
+        }}>
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Terminer la phase</h3>
             </div>
@@ -851,8 +898,12 @@ const fetchAllData = async () => {
       
       {/* Modal pour prolonger une phase */}
       {showProlongerPhaseModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)'
+        }}>
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Prolonger la phase</h3>
             </div>
@@ -958,6 +1009,12 @@ const StatusBadge = ({ status }) => {
 };
 
 // Icônes
+const SearchIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+  </svg>
+);
+
 const DocumentsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -967,18 +1024,6 @@ const DocumentsIcon = () => (
 const DiscussionIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-  </svg>
-);
-
-const CheckDocumentIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-  </svg>
-);
-
-const RejectDocumentIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 8h3m-3-3h3m-3 3v3m-3-3h.01M9 16h.01" />
   </svg>
 );
 
@@ -998,6 +1043,30 @@ const EyeIcon = () => (
 const PlayIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+  </svg>
+);
+
+const XCircleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+  </svg>
+);
+
+const ExclamationIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+  </svg>
+);
+
+const InfoIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
   </svg>
 );
 

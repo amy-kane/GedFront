@@ -9,12 +9,12 @@ const ReceptionnisteDashboard = () => {
   const [selectedDossier, setSelectedDossier] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [stats, setStats] = useState({
-    soumis: 0,
-    complet: 0,
-    incomplet: 0
+    soumis: 0
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredDossiers, setFilteredDossiers] = useState([]);
 
-  // Configurez axios pour inclure le token dans chaque requête
+  // Configuration axios avec token
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -57,27 +57,91 @@ const ReceptionnisteDashboard = () => {
     fetchAllData();
   }, []);
 
+  // Effet pour filtrer les dossiers selon le terme de recherche
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredDossiers(dossiers);
+    } else {
+      const filtered = dossiers.filter(dossier => 
+        dossier.numeroDossier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dossier.nomDeposant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dossier.prenomDeposant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dossier.typeDemande?.libelle?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredDossiers(filtered);
+    }
+  }, [searchTerm, dossiers]);
+
 // Nouvelle fonction qui coordonne toutes les requêtes
 const fetchAllData = async () => {
   try {
     setLoading(true);
     
-    // Récupérer les statistiques uniquement
-    await fetchStats();
-    
-    // Récupérer séparément les dossiers SOUMIS pour l'affichage
     const token = localStorage.getItem('token');
+    
+    // Récupérer seulement les dossiers SOUMIS
     const soumisResponse = await axios.get('/api/dossiers', {
       params: { statut: 'SOUMIS' },
       headers: { 'Authorization': `Bearer ${token}` }
     });
     
-    // Extraire les dossiers pour l'affichage
-    const dossiersData = soumisResponse.data && soumisResponse.data.content 
-      ? soumisResponse.data.content 
-      : (Array.isArray(soumisResponse.data) ? soumisResponse.data : []);
+    console.log("=== DONNÉES SOUMIS ===");
+    console.log("SOUMIS response:", soumisResponse.data);
     
+    // Fonction d'extraction commune
+    const extractCount = (response, label) => {
+      const data = response.data;
+      
+      if (data?.totalElements !== undefined) {
+        console.log(`${label} via totalElements:`, data.totalElements);
+        return data.totalElements;
+      }
+      
+      if (data?.content && Array.isArray(data.content)) {
+        console.log(`${label} via content.length:`, data.content.length);
+        return data.content.length;
+      }
+      
+      if (Array.isArray(data)) {
+        console.log(`${label} via data.length:`, data.length);
+        return data.length;
+      }
+      
+      console.log(`${label} - structure inconnue, retour 0`);
+      return 0;
+    };
+    
+    // Fonction d'extraction des dossiers pour l'affichage
+    const extractDossiers = (response) => {
+      const data = response.data;
+      
+      if (data?.content && Array.isArray(data.content)) {
+        return data.content;
+      }
+      
+      if (Array.isArray(data)) {
+        return data;
+      }
+      
+      return [];
+    };
+    
+    // Calculer les stats (seulement SOUMIS)
+    const soumisCount = extractCount(soumisResponse, 'SOUMIS');
+    
+    console.log("=== STATS FINALES ===");
+    console.log("SOUMIS:", soumisCount);
+    
+    // Mettre à jour les stats
+    setStats({
+      soumis: soumisCount
+    });
+    
+    // Extraire les dossiers SOUMIS pour l'affichage
+    const dossiersData = extractDossiers(soumisResponse);
     setDossiers(dossiersData);
+    setFilteredDossiers(dossiersData);
+    
     setLoading(false);
   } catch (error) {
     console.error("Erreur lors de la récupération des données:", error);
@@ -102,96 +166,127 @@ const fetchSoumisDossiers = async () => {
       : (response.data.content || []);
     
     setDossiers(dossiersData);
+    setFilteredDossiers(dossiersData);
   } catch (error) {
     console.error("Erreur lors de la récupération des dossiers SOUMIS:", error);
     alert("Erreur lors de la récupération des dossiers: " + (error.response?.data?.message || error.message));
   }
 };
 
-  // Fonction pour récupérer les statistiques
-  // Modifiez la fonction fetchStats pour inclure des logs pour tous les statuts
+  // Récupérer les statistiques avec debug détaillé
   const fetchStats = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    
-    // Faire des appels séparés pour faciliter le débogage
-    console.log("Récupération des statistiques SOUMIS...");
-    const soumisResponse = await axios.get('/api/dossiers', {
-      params: { statut: 'SOUMIS' },
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    console.log("Récupération des statistiques COMPLET...");
-    const completResponse = await axios.get('/api/dossiers', {
-      params: { statut: 'COMPLET' },
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    console.log("Récupération des statistiques INCOMPLET...");
-    const incompletResponse = await axios.get('/api/dossiers', {
-      params: { statut: 'INCOMPLET' },
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    // Afficher les réponses pour le débogage
-    console.log("Réponse SOUMIS:", soumisResponse.data);
-    console.log("Réponse COMPLET:", completResponse.data);
-    console.log("Réponse INCOMPLET:", incompletResponse.data);
-    
-    // Cette fonction doit être aussi robuste que possible pour traiter différentes structures
-    const getCount = (response) => {
-      // Obtenir le total des éléments
-      if (response.data && typeof response.data === 'object') {
-        // Si la réponse a une propriété totalElements
-        if (typeof response.data.totalElements === 'number') {
-          return response.data.totalElements;
+    try {
+      const token = localStorage.getItem('token');
+      
+      console.log("=== DÉBUT FETCHSTATS RÉCEPTIONNISTE ===");
+      
+      let soumis = 0;
+      let complet = 0; 
+      let incomplet = 0;
+      
+      // Appel 1: Dossiers SOUMIS
+      try {
+        const soumisResponse = await axios.get('/api/dossiers', {
+          params: { statut: 'SOUMIS' },
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        console.log("=== RÉPONSE SOUMIS ===");
+        console.log("Status:", soumisResponse.status);
+        console.log("Data complète:", soumisResponse.data);
+        console.log("Type de data:", typeof soumisResponse.data);
+        console.log("Est un array?", Array.isArray(soumisResponse.data));
+        
+        if (soumisResponse.data?.content) {
+          soumis = soumisResponse.data.content.length;
+          console.log("SOUMIS via content.length:", soumis);
+        } else if (soumisResponse.data?.totalElements !== undefined) {
+          soumis = soumisResponse.data.totalElements;
+          console.log("SOUMIS via totalElements:", soumis);
+        } else if (Array.isArray(soumisResponse.data)) {
+          soumis = soumisResponse.data.length;
+          console.log("SOUMIS via data.length:", soumis);
+        } else {
+          console.log("SOUMIS - structure non reconnue");
         }
-        // Si la réponse a une propriété content
-        else if (Array.isArray(response.data.content)) {
-          return response.data.content.length;
-        }
-        // Si la réponse a une propriété numberOfElements
-        else if (typeof response.data.numberOfElements === 'number') {
-          return response.data.numberOfElements;
-        }
+      } catch (error) {
+        console.error("Erreur récupération SOUMIS:", error.response?.status, error.response?.data);
       }
-      // Si la réponse est un tableau
-      else if (Array.isArray(response.data)) {
-        return response.data.length;
+      
+      // Appel 2: Dossiers COMPLET  
+      try {
+        const completResponse = await axios.get('/api/dossiers', {
+          params: { statut: 'COMPLET' },
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        console.log("=== RÉPONSE COMPLET ===");
+        console.log("Status:", completResponse.status);
+        console.log("Data complète:", completResponse.data);
+        console.log("Type de data:", typeof completResponse.data);
+        console.log("Est un array?", Array.isArray(completResponse.data));
+        
+        if (completResponse.data?.content) {
+          complet = completResponse.data.content.length;
+          console.log("COMPLET via content.length:", complet);
+        } else if (completResponse.data?.totalElements !== undefined) {
+          complet = completResponse.data.totalElements;
+          console.log("COMPLET via totalElements:", complet);
+        } else if (Array.isArray(completResponse.data)) {
+          complet = completResponse.data.length;
+          console.log("COMPLET via data.length:", complet);
+        } else {
+          console.log("COMPLET - structure non reconnue");
+        }
+      } catch (error) {
+        console.error("Erreur récupération COMPLET:", error.response?.status, error.response?.data);
       }
-      // Valeur par défaut
-      return 0;
-    };
-    
-    // SOLUTION DE CONTOURNEMENT DIRECTE - HARDCODE LES VALEURS CORRECTES
-    // Si l'extraction automatique ne fonctionne pas, utilisez cette approche directe
-    /*
-    const soumisCount = 3; // Remplacez par le nombre réel de dossiers SOUMIS
-    const completCount = 1; // Remplacez par le nombre réel de dossiers COMPLET
-    const incompletCount = 0; // Remplacez par le nombre réel de dossiers INCOMPLET
-    */
-    
-    // Tentez d'obtenir les valeurs à partir des réponses
-    const soumisCount = getCount(soumisResponse);
-    const completCount = getCount(completResponse);
-    const incompletCount = getCount(incompletResponse);
-    
-    console.log("Valeurs extraites:", {
-      soumis: soumisCount,
-      complet: completCount,
-      incomplet: incompletCount
-    });
-    
-    // Mettre à jour le state avec les nouvelles valeurs
-    setStats({
-      soumis: soumisCount,
-      complet: completCount,
-      incomplet: incompletCount
-    });
-  } catch (error) {
-    console.error("Erreur lors de la récupération des statistiques:", error);
-  }
-};
+      
+      // Appel 3: Dossiers INCOMPLET
+      try {
+        const incompletResponse = await axios.get('/api/dossiers', {
+          params: { statut: 'INCOMPLET' },
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        console.log("=== RÉPONSE INCOMPLET ===");
+        console.log("Status:", incompletResponse.status);
+        console.log("Data complète:", incompletResponse.data);
+        console.log("Type de data:", typeof incompletResponse.data);
+        console.log("Est un array?", Array.isArray(incompletResponse.data));
+        
+        if (incompletResponse.data?.content) {
+          incomplet = incompletResponse.data.content.length;
+          console.log("INCOMPLET via content.length:", incomplet);
+        } else if (incompletResponse.data?.totalElements !== undefined) {
+          incomplet = incompletResponse.data.totalElements;
+          console.log("INCOMPLET via totalElements:", incomplet);
+        } else if (Array.isArray(incompletResponse.data)) {
+          incomplet = incompletResponse.data.length;
+          console.log("INCOMPLET via data.length:", incomplet);
+        } else {
+          console.log("INCOMPLET - structure non reconnue");
+        }
+      } catch (error) {
+        console.error("Erreur récupération INCOMPLET:", error.response?.status, error.response?.data);
+      }
+
+      console.log("=== RÉSULTATS FINAUX ===");
+      console.log("SOUMIS:", soumis);
+      console.log("COMPLET:", complet);
+      console.log("INCOMPLET:", incomplet);
+
+      setStats({
+        soumis,
+        complet,
+        incomplet
+      });
+      
+      console.log("=== FIN FETCHSTATS ===");
+    } catch (error) {
+      console.error("Erreur lors de la récupération des statistiques:", error);
+    }
+  };
 
   // Récupérer uniquement les dossiers à traiter (SOUMIS)
   const fetchDossiers = async () => {
@@ -210,6 +305,7 @@ const fetchSoumisDossiers = async () => {
       
       console.log("Dossiers SOUMIS récupérés:", dossiersData);
       setDossiers(dossiersData);
+      setFilteredDossiers(dossiersData);
       
       // Récupérer séparément les statistiques complètes
       await fetchStats();
@@ -240,7 +336,7 @@ const fetchSoumisDossiers = async () => {
     }
   };
 
-  // Marquer un dossier comme complet
+// Marquer un dossier comme complet
 const marquerComplet = async (dossierId) => {
   try {
     const token = localStorage.getItem('token');
@@ -322,26 +418,30 @@ const marquerIncomplet = async (dossierId) => {
 
   return (
     <div className="p-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      {/* Stats Cards - Seulement SOUMIS */}
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
         <StatCard 
-          icon={<DocumentsIcon className="h-10 w-10 text-blue-500" />} 
+          icon={<DocumentsIcon className="h-10 w-10 text-blue-600" />} 
           title="Dossiers à traiter" 
           value={stats.soumis.toString()}
-          color="bg-blue-50"
+          color="bg-blue-100"
         />
-        <StatCard 
-          icon={<CheckDocumentIcon className="h-10 w-10 text-green-500" />} 
-          title="Dossiers complets" 
-          value={stats.complet.toString()}
-          color="bg-green-50"
-        />
-        <StatCard 
-          icon={<RejectDocumentIcon className="h-10 w-10 text-red-500" />} 
-          title="Dossiers incomplets" 
-          value={stats.incomplet.toString()}
-          color="bg-red-50"
-        />
+      </div>
+      
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Rechercher un dossier..." 
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <SearchIcon className="h-5 w-5 text-gray-400" />
+          </div>
+        </div>
       </div>
       
       {/* Titre principal */}
@@ -376,17 +476,20 @@ const marquerIncomplet = async (dossierId) => {
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-3 py-4 text-center">
-                  Chargement des dossiers...
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
+                    Chargement des dossiers...
+                  </div>
                 </td>
               </tr>
-            ) : dossiers.length === 0 ? (
+            ) : filteredDossiers.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 py-4 text-center">
-                  Aucun dossier à traiter
+                  {searchTerm ? 'Aucun dossier trouvé pour cette recherche' : 'Aucun dossier à traiter'}
                 </td>
               </tr>
             ) : (
-              dossiers.map((dossier) => (
+              filteredDossiers.map((dossier) => (
                 <tr key={dossier.id} className="hover:bg-gray-50">
                   <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {dossier.numeroDossier}
@@ -398,7 +501,7 @@ const marquerIncomplet = async (dossierId) => {
                     {dossier.nomDeposant} {dossier.prenomDeposant}
                   </td>
                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(dossier.dateCreation).toLocaleDateString()}
+                    {new Date(dossier.dateCreation).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="px-3 py-4 whitespace-nowrap">
                     <StatusBadge status={dossier.statut} />
@@ -438,8 +541,8 @@ const marquerIncomplet = async (dossierId) => {
       {/* Section détails du dossier sélectionné */}
       {selectedDossier && (
         <div className="bg-white rounded-lg shadow overflow-hidden p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">
               Détails du dossier : {selectedDossier.numeroDossier}
             </h3>
             <button 
@@ -450,22 +553,22 @@ const marquerIncomplet = async (dossierId) => {
             </button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <p className="text-sm text-gray-600">Déposant</p>
-              <p className="font-medium">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Déposant</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Type de demande</p>
-              <p className="font-medium">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Type de demande</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Adresse</p>
-              <p className="font-medium">{selectedDossier.adresseDeposant || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Adresse</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.adresseDeposant || "N/A"}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Email</p>
-              <p className="font-medium">{selectedDossier.emailDeposant || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Email</p>
+              <p className="text-lg font-bold text-blue-600 break-all">{selectedDossier.emailDeposant || "N/A"}</p>
             </div>
           </div>
           
@@ -586,6 +689,12 @@ const StatusBadge = ({ status }) => {
 };
 
 // Icônes
+const SearchIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+  </svg>
+);
+
 const DocumentsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

@@ -1,4 +1,4 @@
-// components/AdminDashboard.jsx - Version complète avec données réelles
+// components/AdminDashboard.jsx - Version sans colonne Documents et actions simplifiées
 
 'use client';
 import React, { useState, useEffect } from 'react';
@@ -207,96 +207,26 @@ const AdminDashboard = () => {
     window.open(`/api/documents/${documentId}/download?token=${token}`, '_blank');
   };
 
-  // Actions sur les dossiers - utiliser l'endpoint correct
-  const approuverDossier = async (dossierId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir approuver ce dossier ?')) return;
+  // Supprimer un dossier
+  const supprimerDossier = async (dossierId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce dossier ? Cette action est irréversible.')) return;
     
     try {
       setActionLoading(dossierId);
       const token = localStorage.getItem('token');
       
-      // Utiliser l'endpoint PUT pour mettre à jour le dossier
-      const formData = new FormData();
-      formData.append('statut', 'APPROUVE');
-      
-      await axios.put(`/api/dossiers/${dossierId}`, formData, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+      await axios.delete(`/api/dossiers/${dossierId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      alert('Dossier approuvé avec succès');
+      alert('Dossier supprimé avec succès');
       fetchAllData(); // Rafraîchir les données
     } catch (error) {
-      console.error("Erreur lors de l'approbation:", error);
+      console.error("Erreur lors de la suppression:", error);
       if (error.response?.status === 403) {
-        alert("Accès refusé. Vous n'avez pas les permissions pour approuver ce dossier.");
+        alert("Accès refusé. Vous n'avez pas les permissions pour supprimer ce dossier.");
       } else {
-        alert("Erreur lors de l'approbation du dossier: " + (error.response?.data?.message || error.message));
-      }
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const rejeterDossier = async (dossierId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir rejeter ce dossier ?')) return;
-    
-    try {
-      setActionLoading(dossierId);
-      const token = localStorage.getItem('token');
-      
-      const formData = new FormData();
-      formData.append('statut', 'REJETE');
-      
-      await axios.put(`/api/dossiers/${dossierId}`, formData, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
-      
-      alert('Dossier rejeté avec succès');
-      fetchAllData(); // Rafraîchir les données
-    } catch (error) {
-      console.error("Erreur lors du rejet:", error);
-      if (error.response?.status === 403) {
-        alert("Accès refusé. Vous n'avez pas les permissions pour rejeter ce dossier.");
-      } else {
-        alert("Erreur lors du rejet du dossier: " + (error.response?.data?.message || error.message));
-      }
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // Marquer comme incomplet
-  const marquerIncomplet = async (dossierId) => {
-    if (!window.confirm('Marquer ce dossier comme incomplet ?')) return;
-    
-    try {
-      setActionLoading(dossierId);
-      const token = localStorage.getItem('token');
-      
-      const formData = new FormData();
-      formData.append('statut', 'INCOMPLET');
-      
-      await axios.put(`/api/dossiers/${dossierId}`, formData, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
-      
-      alert('Dossier marqué comme incomplet');
-      fetchAllData(); // Rafraîchir les données
-    } catch (error) {
-      console.error("Erreur lors du marquage incomplet:", error);
-      if (error.response?.status === 403) {
-        alert("Accès refusé. Vous n'avez pas les permissions pour modifier ce dossier.");
-      } else {
-        alert("Erreur lors du marquage: " + (error.response?.data?.message || error.message));
+        alert("Erreur lors de la suppression du dossier: " + (error.response?.data?.message || error.message));
       }
     } finally {
       setActionLoading(null);
@@ -405,9 +335,6 @@ const AdminDashboard = () => {
                 Date
               </th>
               <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Documents
-              </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Statut
               </th>
               <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -418,7 +345,7 @@ const AdminDashboard = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-center">
+                <td colSpan={7} className="px-3 py-4 text-center">
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
                     Chargement des dossiers...
@@ -427,7 +354,7 @@ const AdminDashboard = () => {
               </tr>
             ) : filteredDossiers.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-center">
+                <td colSpan={7} className="px-3 py-4 text-center">
                   {searchTerm ? 'Aucun dossier trouvé pour cette recherche' : 'Aucun dossier disponible'}
                 </td>
               </tr>
@@ -452,12 +379,6 @@ const AdminDashboard = () => {
                   <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(dossier.dateCreation).toLocaleDateString('fr-FR')}
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <DocumentTextIcon className="h-4 w-4 mr-1 text-gray-400" />
-                      {dossier.nombreDocuments || 0}
-                    </div>
-                  </td>
                   <td className="px-3 py-4 whitespace-nowrap">
                     <StatusBadge status={dossier.statut} />
                   </td>
@@ -472,35 +393,16 @@ const AdminDashboard = () => {
                         <EyeIcon className="h-5 w-5" />
                       </button>
                       <button 
-                        className="text-green-600 hover:text-green-800"
-                        onClick={() => approuverDossier(dossier.id)}
-                        title="Approuver"
+                        className="text-red-600 hover:text-red-800"
+                        onClick={() => supprimerDossier(dossier.id)}
+                        title="Supprimer"
                         disabled={actionLoading === dossier.id}
                       >
                         {actionLoading === dossier.id ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
                         ) : (
-                          <CheckIcon className="h-5 w-5" />
+                          <TrashIcon className="h-5 w-5" />
                         )}
-                      </button>
-                      <button 
-                        className="text-red-600 hover:text-red-800"
-                        onClick={() => rejeterDossier(dossier.id)}
-                        title="Rejeter"
-                        disabled={actionLoading === dossier.id}
-                      >
-                        <XIcon className="h-5 w-5" />
-                      </button>
-                      <button 
-                        className="text-yellow-600 hover:text-yellow-800"
-                        onClick={() => marquerIncomplet(dossier.id)}
-                        title="Marquer incomplet"
-                        disabled={actionLoading === dossier.id}
-                      >
-                        <ExclamationIcon className="h-5 w-5" />
-                      </button>
-                      <button className="text-gray-600 hover:text-gray-800" title="Plus d'options">
-                        <DotsHorizontalIcon className="h-5 w-5" />
                       </button>
                     </div>
                   </td>
@@ -741,27 +643,15 @@ const EyeIcon = () => (
   </svg>
 );
 
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-  </svg>
-);
-
 const XIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
   </svg>
 );
 
-const ExclamationIcon = () => (
+const TrashIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-  </svg>
-);
-
-const DotsHorizontalIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
   </svg>
 );
 

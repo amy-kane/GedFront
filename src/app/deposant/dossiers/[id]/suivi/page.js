@@ -7,6 +7,109 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import React from 'react';
 
+// Composant Layout Principal
+const PageLayout = ({ children }) => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <h1 className="text-xl font-semibold text-gray-900">Suivi de Dossier</h1>
+              </div>
+            </div>
+            <nav className="flex space-x-8">
+              <a href="/deposant/dashboard" className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium transition-colors">
+                Tableau de bord
+              </a>
+              <a href="/deposant/dossiers" className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium transition-colors">
+                Mes dossiers
+              </a>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1">
+        {children}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-12">
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          <div className="text-center text-sm text-gray-500">
+            <p>&copy; 2024 Plateforme de Gestion des Dossiers. Tous droits réservés.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+// Composant Breadcrumb
+const Breadcrumb = ({ dossier }) => {
+  return (
+    <nav className="flex mb-6" aria-label="Breadcrumb">
+      <ol className="inline-flex items-center space-x-1 md:space-x-3">
+        <li className="inline-flex items-center">
+          <a href="/deposant/dashboard" className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path>
+            </svg>
+            Accueil
+          </a>
+        </li>
+        <li>
+          <div className="flex items-center">
+            <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path>
+            </svg>
+            <a href="/deposant/dossiers" className="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ml-2">
+              Mes dossiers
+            </a>
+          </div>
+        </li>
+        <li aria-current="page">
+          <div className="flex items-center">
+            <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"></path>
+            </svg>
+            <span className="ml-1 text-sm font-medium text-gray-500 md:ml-2">
+              {dossier?.numeroDossier || 'Suivi'}
+            </span>
+          </div>
+        </li>
+      </ol>
+    </nav>
+  );
+};
+
+// Composant Actions Rapides
+const QuickActions = ({ dossier }) => {
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <h3 className="text-sm font-medium text-gray-900 mb-3">Actions rapides</h3>
+      <div className="flex flex-wrap gap-2">
+        <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          Télécharger le récapitulatif
+        </button>
+        <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"></path>
+          </svg>
+          Partager
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /**
  * Page de suivi d'un dossier
  * 
@@ -214,95 +317,54 @@ export default function SuiviDossier({ params }) {
    */
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <svg className="animate-spin h-12 w-12 text-blue-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <p className="text-gray-600">Chargement du dossier...</p>
+      <PageLayout>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-center">
+            <svg className="animate-spin h-12 w-12 text-blue-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-gray-600">Chargement du dossier...</p>
+          </div>
         </div>
-      </div>
+      </PageLayout>
     );
   }
+
   return (
-    <div className="max-w-4xl mx-auto mt-8 px-4">
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {/* En-tête avec statut */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
-            <div>
-              <h1 className="text-2xl font-bold">Dossier {dossier?.numeroDossier}</h1>
-              <p className="text-blue-100">{dossier?.typeDemande?.libelle}</p>
-            </div>
-            
-            <div>
-              {dossier?.statut && renderStatut(dossier.statut)}
-            </div>
-          </div>
-        </div>
-        
-        {/* Affichage des erreurs */}
-        {error && (
-          <div className="bg-red-50 p-4 border-b border-red-100">
-            <div className="flex items-center">
-              <svg className="h-5 w-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          </div>
-        )}
-        
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* ✅ Informations du dossier AVEC sexe et âge */}
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Informations
-              </h2>
+    <PageLayout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <Breadcrumb dossier={dossier} />
+
+        {/* Actions rapides */}
+        <QuickActions dossier={dossier} />
+
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {/* En-tête avec statut - Amélioré */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-4 lg:space-y-0">
+              <div>
+                <h1 className="text-3xl font-bold">Dossier {dossier?.numeroDossier}</h1>
+                <p className="text-blue-100 text-lg mt-1">{dossier?.typeDemande?.libelle}</p>
+                <p className="text-blue-200 text-sm mt-2">
+                  Créé le {dossier?.dateCreation 
+                    ? new Date(dossier.dateCreation).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })
+                    : 'Date non disponible'}
+                </p>
+              </div>
               
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-500">Nom complet</p>
-                  <p className="font-medium">{dossier?.prenomDeposant} {dossier?.nomDeposant}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{dossier?.emailDeposant}</p>
-                </div>
-                
-                {/* ✅ Sexe ajouté */}
-                <div>
-                  <p className="text-sm text-gray-500">Sexe</p>
-                  <p className="font-medium">{dossier?.sexeDeposant || 'Non spécifié'}</p>
-                </div>
-                
-                {/* ✅ Âge ajouté */}
-                <div>
-                  <p className="text-sm text-gray-500">Âge</p>
-                  <p className="font-medium">{dossier?.ageDeposant ? `${dossier.ageDeposant} ans` : 'Non spécifié'}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Téléphone</p>
-                  <p className="font-medium">{dossier?.telephoneDeposant}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Adresse</p>
-                  <p className="font-medium">{dossier?.adresseDeposant}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Date de création</p>
+              <div className="flex flex-col items-start lg:items-end space-y-3">
+                {dossier?.statut && renderStatut(dossier.statut)}
+                <div className="text-right text-blue-100 text-sm">
+                  <p>Dernière mise à jour :</p>
                   <p className="font-medium">
-                    {dossier?.dateCreation 
-                      ? new Date(dossier.dateCreation).toLocaleDateString('fr-FR', {
+                    {dossier?.dateModification 
+                      ? new Date(dossier.dateModification).toLocaleDateString('fr-FR', {
                           day: 'numeric',
                           month: 'long',
                           year: 'numeric',
@@ -314,84 +376,186 @@ export default function SuiviDossier({ params }) {
                 </div>
               </div>
             </div>
-            
-            {/* Liste des documents simple avec correction des clés */}
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </div>
+          
+          {/* Affichage des erreurs */}
+          {error && (
+            <div className="bg-red-50 p-4 border-b border-red-100">
+              <div className="flex items-center">
+                <svg className="h-5 w-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                Documents du dossier ({documents.length})
-              </h2>
-              
-              <div className="space-y-3">
-                {documents.length === 0 ? (
-                  <p className="text-gray-500 italic">Aucun document disponible</p>
-                ) : (
-                  documents.map((doc, index) => (
-                    <div 
-                      key={doc.id ? `doc-${doc.id}` : `doc-index-${index}`} 
-                      className="py-3 border-b border-gray-200 last:border-b-0"
-                    >
-                      <div className="flex items-center">
-                        <svg className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            </div>
+          )}
+          
+          <div className="p-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              {/* Informations du dossier - Améliorées */}
+              <div className="xl:col-span-1 space-y-6">
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Informations personnelles
+                  </h2>
+                  
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium">Nom complet</p>
+                        <p className="text-gray-900 font-semibold">{dossier?.prenomDeposant} {dossier?.nomDeposant}</p>
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium">Email</p>
+                        <p className="text-gray-900">{dossier?.emailDeposant}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="font-medium text-gray-900">{doc.nom || `Document ${index + 1}`}</p>
-                          <p className="text-xs text-gray-500">
-                            {doc.typeDocument || 'Document'}
-                          </p>
+                          <p className="text-sm text-gray-500 font-medium">Sexe</p>
+                          <p className="text-gray-900">{dossier?.sexeDeposant || 'Non spécifié'}</p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm text-gray-500 font-medium">Âge</p>
+                          <p className="text-gray-900">{dossier?.ageDeposant ? `${dossier.ageDeposant} ans` : 'Non spécifié'}</p>
                         </div>
                       </div>
+                      
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium">Téléphone</p>
+                        <p className="text-gray-900">{dossier?.telephoneDeposant}</p>
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium">Adresse</p>
+                        <p className="text-gray-900">{dossier?.adresseDeposant}</p>
+                      </div>
                     </div>
-                  ))
-                )}
+                  </div>
+                </div>
+
+                {/* Documents - Améliorés */}
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Documents ({documents.length})
+                  </h2>
+                  
+                  <div className="space-y-3">
+                    {documents.length === 0 ? (
+                      <div className="text-center py-8">
+                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p className="text-gray-500 italic mt-2">Aucun document disponible</p>
+                      </div>
+                    ) : (
+                      documents.map((doc, index) => (
+                        <div 
+                          key={doc.id ? `doc-${doc.id}` : `doc-index-${index}`} 
+                          className="bg-white p-4 rounded-md border border-gray-200 hover:border-gray-300 transition-colors"
+                        >
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                              <svg className="h-8 w-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <div className="ml-3 flex-1">
+                              <p className="font-medium text-gray-900">{doc.nom || `Document ${index + 1}`}</p>
+                              <p className="text-sm text-gray-500">{doc.typeDocument || 'Document'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Historique d'activité (timeline) - Plus large */}
+              <div className="xl:col-span-2">
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 h-full">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <svg className="h-6 w-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Historique du dossier
+                  </h2>
+                  
+                  <div className="relative">
+                    {/* Ligne verticale de la timeline */}
+                    <div className="absolute left-3.5 top-0 h-full w-0.5 bg-gray-200"></div>
+                    
+                    <div className="space-y-8">
+                      {/* Rendu des étapes de la timeline à partir de la fonction */}
+                      {renderTimelineSteps()}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
-            {/* Instructions et aide */}
-            <div className="md:col-span-2 bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h2 className="text-lg font-semibold text-blue-800 mb-3">Besoin d'aide ?</h2>
-              <p className="text-sm text-blue-700 mb-2">
-                Pour toute question concernant votre dossier, veuillez contacter notre service d'assistance :
-              </p>
-              <p className="text-sm text-blue-800 font-medium">
-                <svg className="inline-block h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                support@exemple.fr
-              </p>
-              <p className="text-sm text-blue-800 font-medium">
-                <svg className="inline-block h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-                01 23 45 67 89
-              </p>
-            </div>
-          </div>
-          
-          {/* Historique d'activité (timeline) avec l'approche basée sur un tableau */}
-          <div className="mt-8 bg-gray-50 p-6 rounded-lg border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-              <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Historique du dossier
-            </h2>
-            
-            <div className="relative">
-              {/* Ligne verticale de la timeline */}
-              <div className="absolute left-3.5 top-0 h-full w-0.5 bg-gray-200"></div>
-              
-              <div className="space-y-6">
-                {/* Rendu des étapes de la timeline à partir de la fonction */}
-                {renderTimelineSteps()}
+            {/* Instructions et aide - Section élargie */}
+            <div className="mt-8">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-6 w-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <h3 className="text-lg font-semibold text-blue-800 mb-2">Besoin d'aide ?</h3>
+                    <p className="text-blue-700 mb-4">
+                      Pour toute question concernant votre dossier, n'hésitez pas à contacter notre service d'assistance. 
+                      Notre équipe est disponible pour vous accompagner dans vos démarches.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center text-blue-800">
+                        <svg className="h-5 w-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <div>
+                          <p className="font-medium">Email</p>
+                          <p className="text-sm">support@exemple.fr</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center text-blue-800">
+                        <svg className="h-5 w-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <div>
+                          <p className="font-medium">Téléphone</p>
+                          <p className="text-sm">01 23 45 67 89</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-blue-200">
+                      <p className="text-sm text-blue-600">
+                        <svg className="inline h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Horaires d'ouverture : Lundi au Vendredi de 8h00 à 18h00
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
