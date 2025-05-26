@@ -154,13 +154,8 @@ const MembreComiteLayout = ({ children }) => {
             
             {/* Header Actions */}
             <div className="flex items-center space-x-4">
-              {/* Notifications Badge */}
-              <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-                <BellIcon className="h-6 w-6" />
-                <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  1
-                </span>
-              </button>
+              {/* Notifications Badge - STYLE MODERNISÉ AVEC THÈME PURPLE */}
+              
 
               {/* Divider */}
               <div className="h-6 w-px bg-gray-300"></div>
@@ -247,8 +242,14 @@ const MembreComiteLayout = ({ children }) => {
                 onClick={navigateToVotes}
                 collapsed={sidebarCollapsed}
               />
+              {/* NavItem pour Notifications avec badge dans la sidebar aussi */}
               <NavItem 
-                icon={<BellIcon />} 
+                icon={
+                  <div className="relative">
+                    <BellIcon />
+                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></div>
+                  </div>
+                } 
                 text="Notifications" 
                 active={isActive('/membre-comite/notifications')}
                 onClick={navigateToNotifications}

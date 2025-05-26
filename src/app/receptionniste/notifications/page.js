@@ -1,9 +1,7 @@
 // app/receptionniste/notifications/page.js
 'use client';
+import NotificationsPage from '../../../components/NotificationsPage';
 
-import React from 'react';
-import NotificationsPanel from '@/components/NotificationsPanel';
-
-export default function NotificationsPage() {
-  return <NotificationsPanel />;
+export default function ReceptionnisteNotifications() {
+  return <NotificationsPage />;
 }

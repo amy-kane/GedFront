@@ -1,4 +1,4 @@
-// components/AdminDashboard.jsx - Version sans colonne Documents et actions simplifiées
+// components/AdminDashboard.jsx - Version améliorée
 
 'use client';
 import React, { useState, useEffect } from 'react';
@@ -413,11 +413,11 @@ const AdminDashboard = () => {
         </table>
       </div>
 
-      {/* Section détails du dossier sélectionné */}
+      {/* Section détails du dossier sélectionné avec style amélioré */}
       {selectedDossier && (
         <div className="mt-6 bg-white rounded-lg shadow overflow-hidden p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">
               Détails du dossier : {selectedDossier.numeroDossier || `DOS-${selectedDossier.id}`}
             </h3>
             <button 
@@ -428,23 +428,23 @@ const AdminDashboard = () => {
             </button>
           </div>
           
-          {/* Informations du dossier */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <p className="text-sm text-gray-600">Déposant</p>
-              <p className="font-medium">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
+          {/* Informations du dossier avec style amélioré */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Déposant</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.nomDeposant} {selectedDossier.prenomDeposant}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Type de demande</p>
-              <p className="font-medium">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Type de demande</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.typeDemande?.libelle || "N/A"}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Email</p>
-              <p className="font-medium">{selectedDossier.emailDeposant || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Email</p>
+              <p className="text-lg font-bold text-blue-600 break-all">{selectedDossier.emailDeposant || "N/A"}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Téléphone</p>
-              <p className="font-medium">{selectedDossier.telephoneDeposant || "N/A"}</p>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-600 mb-1">Téléphone</p>
+              <p className="text-lg font-bold text-gray-900">{selectedDossier.telephoneDeposant || "N/A"}</p>
             </div>
           </div>
           
