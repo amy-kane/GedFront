@@ -1,5 +1,5 @@
 // app/coordinateur/votes/[id]/page.jsx
-// page de détail des votes pour que les membres et le coordinateur puissent voter
+// Page de détail des votes pour que les membres et le coordinateur puissent noter
 
 'use client';
 
@@ -12,46 +12,24 @@ const VoteDetails = () => {
   const router = useRouter();
   const phaseId = params.id;
   
+  // États principaux
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState(null);
   const [error, setError] = useState(null);
   const [votes, setVotes] = useState([]);
   const [myVote, setMyVote] = useState(null);
+  const [moyenne, setMoyenne] = useState(null);
+  
+  // États pour la modal de notation
   const [showVoteModal, setShowVoteModal] = useState(false);
-  const [votingDecision, setVotingDecision] = useState('FAVORABLE');
+  const [votingNote, setVotingNote] = useState(15);
   const [votingComment, setVotingComment] = useState('');
+  
+  // États pour la modal de confirmation
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState(null);
 
-  
-  // Fonction utilitaire pour vérifier la présence de l'utilisateur
-  const formatUserName = (user) => {
-    if (!user) return 'Utilisateur inconnu';
-    const prenom = user.prenom || '';
-    const nom = user.nom || '';
-    return (prenom + ' ' + nom).trim() || 'Utilisateur inconnu';
-  };
-  
-  
-  // Cette fonction s'assure que chaque vote a une structure cohérente
-  const normalizeVote = (vote) => {
-    if (!vote) return null;
-    
-    // Créer un objet vote avec des valeurs par défaut
-    return {
-      id: vote.id || Math.random().toString(36).substring(2, 9), // ID unique, utilisant un aléatoire si absent
-      decision: vote.decision || 'INCONNU',
-      commentaire: vote.commentaire || '',
-      dateCreation: vote.dateCreation || new Date().toISOString(),
-      utilisateur: {
-        id: vote.utilisateur?.id || 0,
-        prenom: vote.utilisateur?.prenom || '',
-        nom: vote.utilisateur?.nom || 'Utilisateur inconnu',
-        role: vote.utilisateur?.role || 'INCONNU'
-      }
-    };
-  };
-  
+  // Configuration de l'authentification
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -61,75 +39,235 @@ const VoteDetails = () => {
     fetchPhaseDetails();
   }, [phaseId]);
   
+  // Fonction principale de récupération des données
   const fetchPhaseDetails = useCallback(async () => {
-  try {
-    setLoading(true);
-    setError(null);
-    
-    // Récupérer les détails de la phase
     try {
-      console.log("Tentative de récupération des détails de la phase", phaseId);
+      setLoading(true);
+      setError(null);
+      
+      console.log("Récupération des détails de la phase", phaseId);
+      
+      // Récupérer les détails de la phase
+      await fetchPhase();
+      
+      // Si c'est bien une phase de vote, récupérer les données associées
+      await Promise.all([
+        fetchVotes(),
+        fetchMyVote(),
+        fetchMoyenne()
+      ]);
+      
+    } catch (err) {
+      console.error("Erreur générale lors de la récupération des détails:", err);
+      setError("Impossible de charger les détails de cette phase. Utilisation de données simulées.");
+      
+      // Fallback vers des données simulées
+      loadSimulatedData();
+    } finally {
+      setLoading(false);
+    }
+  }, [phaseId]);
+
+  // Récupérer les détails de la phase
+  const fetchPhase = async () => {
+    try {
       const response = await axios.get(`/api/phases/${phaseId}`);
       console.log("Détails de la phase récupérés:", response.data);
       
       setPhase(response.data);
       
-      // Vérifier si c'est bien une phase de vote
       if (response.data.type !== 'VOTE') {
-        setError("Ceci n'est pas une phase de vote");
-      } else {
-        // Récupérer les votes pour cette phase
-        await fetchVotes();
-        
-        // Récupérer mon vote si j'en ai déjà un
-        await fetchMyVote();
+        throw new Error("Ceci n'est pas une phase de vote");
       }
     } catch (apiError) {
       console.error("Erreur lors de la récupération des détails de la phase:", apiError);
       
-      // Si erreur 404, la phase n'existe peut-être pas encore dans le backend,
-      // mais elle existe peut-être dans la liste des phases
-      if (apiError.response && apiError.response.status === 404) {
+      // Si erreur 404, essayer de trouver la phase dans la liste des phases
+      if (apiError.response?.status === 404) {
         try {
-          // Essayer de trouver la phase dans la liste des phases
           const phasesResponse = await axios.get('/api/phases/votes');
           const phases = Array.isArray(phasesResponse.data) ? phasesResponse.data : [];
-          
-          // Chercher notre phase
           const matchingPhase = phases.find(p => p.id.toString() === phaseId.toString());
           
           if (matchingPhase) {
             console.log("Phase trouvée dans la liste:", matchingPhase);
             setPhase(matchingPhase);
-            
-            // Récupérer les votes pour cette phase
-            await fetchVotes();
-            
-            // Récupérer mon vote si j'en ai déjà un
-            await fetchMyVote();
-            
-            return; // Sortir de la fonction si on a trouvé la phase
+            return;
           }
         } catch (listError) {
           console.error("Erreur lors de la recherche dans la liste des phases:", listError);
         }
       }
       
-      // Simuler les données
-      const simulatedPhase = getSimulatedPhaseDetails(phaseId);
-      setPhase(simulatedPhase);
+      throw apiError;
+    }
+  };
+  
+  // Récupérer tous les votes de la phase
+  const fetchVotes = async () => {
+    try {
+      const response = await axios.get(`/api/votes/phase/${phaseId}`);
+      setVotes(response.data || []);
+      console.log(`${response.data?.length || 0} votes récupérés`);
+    } catch (err) {
+      console.error("Erreur lors de la récupération des votes:", err);
+      // En cas d'erreur, les votes restent vides
+      setVotes([]);
+    }
+  };
+  
+  // Récupérer ma note pour cette phase
+  const fetchMyVote = async () => {
+    try {
+      const response = await axios.get(`/api/votes/phase/${phaseId}/mon-vote`);
+      setMyVote(response.data);
+      console.log("Ma note récupérée:", response.data);
+    } catch (err) {
+      if (err.response?.status === 404) {
+        console.log("Aucune note trouvée pour cet utilisateur");
+        setMyVote(null);
+      } else {
+        console.error("Erreur lors de la récupération de ma note:", err);
+        setMyVote(null);
+      }
+    }
+  };
+
+  // Récupérer la moyenne des notes
+  const fetchMoyenne = async () => {
+    try {
+      const response = await axios.get(`/api/votes/phase/${phaseId}/resultats`);
+      setMoyenne(response.data.moyenne);
+      console.log("Moyenne récupérée:", response.data.moyenne);
+    } catch (err) {
+      console.error("Erreur lors de la récupération de la moyenne:", err);
+      // Calculer la moyenne localement si possible
+      if (votes.length > 0) {
+        const moyenneLocale = votes.reduce((sum, vote) => sum + vote.note, 0) / votes.length;
+        setMoyenne(moyenneLocale);
+      }
+    }
+  };
+
+  // Charger des données simulées en cas d'erreur
+  const loadSimulatedData = () => {
+    const simulatedPhase = {
+      id: parseInt(phaseId),
+      type: 'VOTE',
+      description: 'Notation du projet de construction en zone sensible',
+      dateDebut: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      dateFin: null,
+      dossier: {
+        id: 105,
+        numeroDossier: 'DOS-2025-004',
+        typeDemande: { libelle: 'Permis de construire' },
+        nomDeposant: 'Entreprise',
+        prenomDeposant: 'Test',
+        dateCreation: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    };
+
+    const simulatedVotes = [
+      {
+        id: 101,
+        note: 16,
+        commentaire: "Projet conforme aux normes environnementales",
+        dateCreation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        utilisateur: { id: 201, nom: "Martin", prenom: "Sophie", role: "MEMBRE_COMITE" }
+      },
+      {
+        id: 102,
+        note: 12,
+        commentaire: "Quelques réserves sur l'impact paysager",
+        dateCreation: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        utilisateur: { id: 202, nom: "Dubois", prenom: "Jean", role: "MEMBRE_COMITE" }
+      },
+      {
+        id: 103,
+        note: 18,
+        commentaire: "Excellent dossier technique",
+        dateCreation: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        utilisateur: { id: 203, nom: "Lemaire", prenom: "Marie", role: "MEMBRE_COMITE" }
+      }
+    ];
+
+    // Simuler ma note (50% de chance)
+    const mySimulatedVote = Math.random() > 0.5 ? {
+      id: 999,
+      note: 15,
+      commentaire: "Ma note simulée",
+      dateCreation: new Date().toISOString(),
+      utilisateur: { id: 1, nom: "Coordinateur", prenom: "Test", role: "COORDINATEUR" }
+    } : null;
+
+    setPhase(simulatedPhase);
+    setVotes(simulatedVotes);
+    setMyVote(mySimulatedVote);
+    
+    // Calculer la moyenne
+    const allVotes = mySimulatedVote ? [...simulatedVotes, mySimulatedVote] : simulatedVotes;
+    const moyenneSimulee = allVotes.reduce((sum, vote) => sum + vote.note, 0) / allVotes.length;
+    setMoyenne(moyenneSimulee);
+  };
+  
+  // Soumettre ou modifier une note
+  const handleSubmitVote = async () => {
+    try {
+      // Validation côté client
+      if (votingNote < 0 || votingNote > 20) {
+        alert("La note doit être comprise entre 0 et 20");
+        return;
+      }
+
+      if (!votingComment.trim()) {
+        if (!confirm("Êtes-vous sûr de vouloir noter sans commentaire ?")) {
+          return;
+        }
+      }
       
-      // Simuler les votes
-      const simulatedVotes = getSimulatedVotes(phaseId);
-      setVotes(simulatedVotes);
+      let success = false;
       
-      // Simuler mon vote (50% de chance d'avoir déjà voté)
-      if (Math.random() > 0.5) {
-        const decisions = ['FAVORABLE', 'DEFAVORABLE', 'COMPLEMENT_REQUIS'];
-        const mySimulatedVote = {
-          id: 999,
-          decision: decisions[Math.floor(Math.random() * decisions.length)],
-          commentaire: "Mon vote simulé",
+      if (myVote) {
+        // Modifier une note existante
+        try {
+          await axios.put(`/api/votes/${myVote.id}`, null, {
+            params: {
+              note: votingNote,
+              commentaire: votingComment
+            }
+          });
+          success = true;
+          alert("Note modifiée avec succès");
+        } catch (apiError) {
+          console.error("Erreur API lors de la modification:", apiError);
+          alert("Note modifiée avec succès (simulation)");
+          success = true;
+        }
+      } else {
+        // Créer une nouvelle note
+        try {
+          await axios.post(`/api/votes`, null, {
+            params: {
+              phaseId: phaseId,
+              note: votingNote,
+              commentaire: votingComment
+            }
+          });
+          success = true;
+          alert("Note enregistrée avec succès");
+        } catch (apiError) {
+          console.error("Erreur API lors de la création:", apiError);
+          alert("Note enregistrée avec succès (simulation)");
+          success = true;
+        }
+      }
+      
+      if (success) {
+        // Créer la nouvelle note pour l'affichage local
+        const newVote = {
+          id: myVote?.id || Date.now(),
+          note: votingNote,
+          commentaire: votingComment,
           dateCreation: new Date().toISOString(),
           utilisateur: {
             id: 1,
@@ -138,466 +276,507 @@ const VoteDetails = () => {
             role: "COORDINATEUR"
           }
         };
-        setMyVote(mySimulatedVote);
+        
+        // Mettre à jour les états locaux
+        if (myVote) {
+          // Remplacer ma note existante dans la liste
+          setVotes(prevVotes => prevVotes.map(v => 
+            v.utilisateur?.id === 1 ? newVote : v
+          ));
+        } else {
+          // Ajouter ma nouvelle note à la liste
+          setVotes(prevVotes => [...prevVotes, newVote]);
+        }
+        
+        setMyVote(newVote);
+        
+        // Recalculer la moyenne
+        const updatedVotes = myVote 
+          ? votes.map(v => v.utilisateur?.id === 1 ? newVote : v)
+          : [...votes, newVote];
+        const nouvelleMoyenne = updatedVotes.reduce((sum, vote) => sum + vote.note, 0) / updatedVotes.length;
+        setMoyenne(nouvelleMoyenne);
+        
+        // Fermer la modal et réinitialiser
+        setShowVoteModal(false);
+        setVotingComment('');
+        
+        // Rafraîchir les données depuis l'API
+        setTimeout(() => {
+          fetchVotes();
+          fetchMyVote();
+          fetchMoyenne();
+        }, 500);
       }
-      
-      setError("Utilisation de données simulées suite à une erreur de l'API");
-    }
-  } catch (err) {
-    console.error("Erreur générale lors de la récupération des détails:", err);
-    setError("Impossible de charger les détails de cette phase");
-  } finally {
-    setLoading(false);
-  }
-}, [phaseId]);
-  
-  const fetchVotes = async () => {
-    try {
-      const response = await axios.get(`/api/votes/phase/${phaseId}`);
-      setVotes(response.data);
     } catch (err) {
-      console.error("Erreur lors de la récupération des votes:", err);
-      // Nous continuons malgré l'erreur, les votes resteront vides
+      console.error("Erreur lors de l'envoi de la note:", err);
+      alert("Erreur lors de l'envoi de la note");
     }
   };
   
-  const fetchMyVote = async () => {
-  try {
-    const response = await axios.get(`/api/votes/phase/${phaseId}/mon-vote`);
-    setMyVote(response.data);
-  } catch (err) {
-    // Si erreur 404, c'est normal (pas de vote)
-    if (err.response?.status === 404) {
-      console.log("Aucun vote trouvé pour cet utilisateur");
-      setMyVote(null);
-    } else {
-      console.error("Erreur lors de la récupération de mon vote:", err);
-      // Autres erreurs, on peut quand même continuer
-      setMyVote(null);
-    }
-  }
-};
-  
-  const handleSubmitVote = async () => {
-    try {
-      if (!votingComment.trim()) {
-        if (!confirm("Êtes-vous sûr de vouloir voter sans commentaire ?")) {
-          return;
-        }
-      }
-      
-      if (myVote) {
-        // Modifier un vote existant
-        await axios.put(`/api/votes/${myVote.id}`, null, {
-          params: {
-            decision: votingDecision,
-            commentaire: votingComment
-          }
-        });
-        
-        alert("Vote modifié avec succès");
-      } else {
-        // Créer un nouveau vote
-        await axios.post(`/api/votes`, null, {
-          params: {
-            phaseId: phaseId,
-            decision: votingDecision,
-            commentaire: votingComment
-          }
-        });
-        
-        alert("Vote enregistré avec succès");
-      }
-      
-      // Rafraîchir les données
-      setShowVoteModal(false);
-      setVotingComment('');
-      await fetchVotes();
-      await fetchMyVote();
-    } catch (err) {
-      console.error("Erreur lors de l'envoi du vote:", err);
-      
-      // En cas d'erreur API, simuler le succès
-      alert("Vote simulé enregistré avec succès");
-      setShowVoteModal(false);
-      
-      // Créer un vote simulé
-      const newSimulatedVote = {
-        id: Date.now(), // ID unique basé sur l'horodatage
-        decision: votingDecision,
-        commentaire: votingComment,
-        dateCreation: new Date().toISOString(),
-        utilisateur: {
-          id: 1,
-          nom: "Coordinateur",
-          prenom: "Test",
-          role: "COORDINATEUR"
-        }
-      };
-      
-      // Ajouter le vote à la liste ou remplacer l'existant
-      if (myVote) {
-        setVotes(prevVotes => prevVotes.map(v => 
-          v.id === myVote.id ? newSimulatedVote : v
-        ));
-      } else {
-        setVotes(prevVotes => [...prevVotes, newSimulatedVote]);
-      }
-      
-      setMyVote(newSimulatedVote);
-      setVotingComment('');
-    }
-  };
-  
+  // Terminer la phase de vote
   const handleTerminerPhase = async () => {
-    if (confirm("Êtes-vous sûr de vouloir terminer cette phase de vote ?")) {
-      try {
-        await axios.put(`/api/phases/${phaseId}/terminer`);
-        alert("Phase de vote terminée avec succès");
-        fetchPhaseDetails();
-      } catch (err) {
-        console.error("Erreur lors de la terminaison de la phase:", err);
-        
-        // Simuler la terminaison
-        setPhase(prevPhase => ({
-          ...prevPhase,
-          dateFin: new Date().toISOString()
-        }));
-        
-        alert("Phase de vote terminée avec succès (simulation)");
-      }
-    }
-  };
-  
-  // Fonction pour approuver ou rejeter le dossier
-  // Fonction corrigée pour approuver ou rejeter le dossier
-const handleDecisionDossier = async (decision) => {
-  try {
-    const token = localStorage.getItem('token');
-    
-    // Vérifier que la phase est bien terminée
-    if (!phase.dateFin) {
-      alert("Vous devez d'abord terminer la phase de vote avant de prendre une décision");
+    if (!confirm("Êtes-vous sûr de vouloir terminer cette phase de notation ?")) {
       return;
     }
-    
-    // Déterminer le statut selon la décision
-    const nouveauStatut = decision === 'approuver' ? 'APPROUVE' : 'REJETE';
-    
-    // Afficher un message d'attente
-    setLoading(true);
-    setError(null);
-    
+
     try {
-      console.log(`Tentative de ${decision} du dossier ${phase.dossier.id} avec le statut ${nouveauStatut}`);
+      await axios.put(`/api/phases/${phaseId}/terminer`);
+      alert("Phase de notation terminée avec succès");
       
-      // MAINTENANT QUE L'ENDPOINT EXISTE, ON PEUT L'UTILISER
-      await axios.put(`/api/dossiers/${phase.dossier.id}/statut`, null, {
-        params: { statut: nouveauStatut },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      // Mettre à jour la phase localement
+      setPhase(prevPhase => ({
+        ...prevPhase,
+        dateFin: new Date().toISOString()
+      }));
+    } catch (err) {
+      console.error("Erreur lors de la terminaison de la phase:", err);
       
-      alert(`Le dossier a été ${decision === 'approuver' ? 'approuvé' : 'rejeté'} avec succès`);
+      // Simuler la terminaison en cas d'erreur
+      setPhase(prevPhase => ({
+        ...prevPhase,
+        dateFin: new Date().toISOString()
+      }));
       
-      // Rediriger vers la page de la liste des dossiers
-      router.push('/coordinateur/dashboard');
+      alert("Phase de notation terminée avec succès (simulation)");
+    }
+  };
+  
+  // Approuver ou rejeter le dossier
+  const handleDecisionDossier = async (decision) => {
+    try {
+      const token = localStorage.getItem('token');
       
-    } catch (apiError) {
-      console.error(`Erreur API lors de la ${decision} du dossier:`, apiError);
-      
-      // Afficher l'erreur détaillée
-      let errorMsg = `Erreur lors de la ${decision === 'approuver' ? 'validation' : 'refus'} du dossier.`;
-      
-      if (apiError.response) {
-        errorMsg += ` (Code ${apiError.response.status})`;
-        if (apiError.response.data && apiError.response.data.message) {
-          errorMsg += `: ${apiError.response.data.message}`;
-        }
+      // Vérifier que la phase est bien terminée
+      if (!phase.dateFin) {
+        alert("Vous devez d'abord terminer la phase de notation avant de prendre une décision");
+        return;
       }
       
-      setError(errorMsg);
-      setLoading(false);
+      const nouveauStatut = decision === 'approuver' ? 'APPROUVE' : 'REJETE';
       
-      // Proposer la simulation en cas d'erreur persistante
-      if (confirm(`${errorMsg}\n\nVoulez-vous simuler la ${decision} du dossier pour continuer le développement?`)) {
-        alert(`Le dossier a été ${decision === 'approuver' ? 'approuvé' : 'rejeté'} avec succès (simulation)`);
+      setLoading(true);
+      setError(null);
+      
+      try {
+        console.log(`Tentative de ${decision} du dossier ${phase.dossier.id}`);
+        
+        await axios.put(`/api/dossiers/${phase.dossier.id}/statut`, null, {
+          params: { statut: nouveauStatut },
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        alert(`Le dossier a été ${decision === 'approuver' ? 'approuvé' : 'rejeté'} avec succès`);
+        
+        // Rediriger vers la liste des dossiers
         router.push('/coordinateur/dossiers');
+        
+      } catch (apiError) {
+        console.error(`Erreur API lors de la ${decision} du dossier:`, apiError);
+        
+        let errorMsg = `Erreur lors de la ${decision === 'approuver' ? 'validation' : 'refus'} du dossier.`;
+        if (apiError.response) {
+          errorMsg += ` (Code ${apiError.response.status})`;
+          if (apiError.response.data?.message) {
+            errorMsg += `: ${apiError.response.data.message}`;
+          }
+        }
+        
+        setError(errorMsg);
+        setLoading(false);
+        
+        // Proposer la simulation
+        if (confirm(`${errorMsg}\n\nVoulez-vous simuler la ${decision} du dossier ?`)) {
+          alert(`Le dossier a été ${decision === 'approuver' ? 'approuvé' : 'rejeté'} avec succès (simulation)`);
+          router.push('/coordinateur/dossiers');
+        }
       }
+    } catch (error) {
+      console.error(`Erreur générale lors de la ${decision} du dossier:`, error);
+      setError(`Une erreur inattendue s'est produite: ${error.message}`);
+      setLoading(false);
     }
-  } catch (error) {
-    console.error(`Erreur générale lors de la ${decision} du dossier:`, error);
-    setError(`Une erreur inattendue s'est produite: ${error.message}`);
-    setLoading(false);
-  }
-};
-  
-  // Données simulées pour le fallback
-  const getSimulatedPhaseDetails = (id) => {
-    const now = new Date();
-    return {
-      id: parseInt(id),
-      type: 'VOTE',
-      description: 'Vote sur les mesures compensatoires proposées en zone humide',
-      dateDebut: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      dateFin: null, // Phase active
-      dossier: {
-        id: 105,
-        numeroDossier: 'DOS-2025-004',
-        typeDemande: { libelle: 'Licence 1 Informatique' },
-        nomDeposant: 'Utilisateur',
-        prenomDeposant: 'Test',
-        dateCreation: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    };
   };
-  
-  const getSimulatedVotes = (phaseId) => {
-    return [
-      {
-        id: 101,
-        decision: 'FAVORABLE',
-        commentaire: "Le projet répond aux exigences environnementales",
-        dateCreation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        utilisateur: {
-          id: 201,
-          nom: "Martin",
-          prenom: "Sophie",
-          role: "MEMBRE_COMITE"
-        }
-      },
-      {
-        id: 102,
-        decision: 'DEFAVORABLE',
-        commentaire: "Impact trop important sur la biodiversité locale",
-        dateCreation: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        utilisateur: {
-          id: 202,
-          nom: "Dubois",
-          prenom: "Jean",
-          role: "MEMBRE_COMITE"
-        }
-      }
+
+  // Composants utilitaires
+
+  // Badge pour afficher une note avec couleur appropriée
+  const NoteBadge = ({ note }) => {
+    let bgColor = 'bg-red-100 text-red-800';
+    let level = 'Insuffisant';
+    
+    if (note >= 16) {
+      bgColor = 'bg-green-100 text-green-800';
+      level = 'Excellent';
+    } else if (note >= 12) {
+      bgColor = 'bg-yellow-100 text-yellow-800';
+      level = 'Bien';
+    } else if (note >= 8) {
+      bgColor = 'bg-orange-100 text-orange-800';
+      level = 'Passable';
+    }
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor}`}>
+        {note}/20
+      </span>
+    );
+  };
+
+  // Curseur pour sélectionner une note
+  const NoteSlider = ({ value, onChange }) => {
+    return (
+      <div className="w-full">
+        <div className="flex justify-between text-sm text-gray-600 mb-2">
+          <span>0</span>
+          <span className="font-medium text-lg text-indigo-600">{value}/20</span>
+          <span>20</span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="20"
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style={{
+            background: `linear-gradient(to right, 
+              #ef4444 0%, #ef4444 25%, 
+              #f59e0b 25%, #f59e0b 50%, 
+              #eab308 50%, #eab308 75%, 
+              #10b981 75%, #10b981 100%)`
+          }}
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-2">
+          <span className="text-red-600">Insuffisant</span>
+          <span className="text-orange-600">Passable</span>
+          <span className="text-yellow-600">Bien</span>
+          <span className="text-green-600">Excellent</span>
+        </div>
+        <div className="mt-2 text-center">
+          <NoteBadge note={value} />
+        </div>
+      </div>
+    );
+  };
+
+  // Fonction utilitaire pour formater le nom d'utilisateur
+  const formatUserName = (user) => {
+    if (!user) return 'Utilisateur inconnu';
+    const prenom = user.prenom || '';
+    const nom = user.nom || '';
+    return (prenom + ' ' + nom).trim() || 'Utilisateur inconnu';
+  };
+
+  // Calcul des statistiques
+  const calculateStats = () => {
+    if (votes.length === 0) return { distribution: [], min: 0, max: 0 };
+    
+    const notes = votes.map(v => v.note);
+    const min = Math.min(...notes);
+    const max = Math.max(...notes);
+    
+    const distribution = [
+      { label: '0-5', count: notes.filter(n => n <= 5).length, color: 'bg-red-500' },
+      { label: '6-10', count: notes.filter(n => n > 5 && n <= 10).length, color: 'bg-orange-500' },
+      { label: '11-15', count: notes.filter(n => n > 10 && n <= 15).length, color: 'bg-yellow-500' },
+      { label: '16-20', count: notes.filter(n => n > 15).length, color: 'bg-green-500' }
     ];
-  };
-  
-  // Composant pour afficher la décision de vote
-  const DecisionBadge = ({ decision }) => {
-    switch (decision) {
-      case 'FAVORABLE':
-        return (
-          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-            Favorable
-          </span>
-        );
-      case 'DEFAVORABLE':
-        return (
-          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-            Défavorable
-          </span>
-        );
-      case 'COMPLEMENT_REQUIS':
-        return (
-          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-            Complément requis
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-  
-  // Calcul des résultats de vote
-  const calculateResults = () => {
-    const results = {
-      FAVORABLE: 0,
-      DEFAVORABLE: 0,
-      COMPLEMENT_REQUIS: 0
-    };
     
-    votes.forEach(vote => {
-      if (results[vote.decision] !== undefined) {
-        results[vote.decision]++;
-      }
-    });
-    
-    return results;
+    return { distribution, min, max };
   };
   
-  const voteResults = calculateResults();
-  
+  const stats = calculateStats();
+
+  // Affichage du loading
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Chargement des détails de la notation...</p>
+        </div>
       </div>
     );
   }
-  
+
+  // Affichage des erreurs critiques
   if (error && !phase) {
     return (
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-          {error}
+          <div className="flex">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h3 className="font-medium">Erreur de chargement</h3>
+              <p className="mt-1">{error}</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4">
+          <button 
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          >
+            Retour
+          </button>
         </div>
       </div>
     );
   }
-  
+
+  // Affichage si phase non trouvée
   if (!phase) {
     return (
       <div className="p-6">
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md">
-          Phase non trouvée
+          Phase de notation non trouvée
+        </div>
+        <div className="mt-4">
+          <button 
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          >
+            Retour
+          </button>
         </div>
       </div>
     );
   }
-  
+
+  // Affichage principal
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Message d'erreur/avertissement */}
       {error && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md mb-6">
-          {error}
+          <div className="flex">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <p className="font-medium">Attention</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          </div>
         </div>
       )}
       
       {/* En-tête */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">
-          Vote sur le dossier {phase.dossier.numeroDossier}
-        </h1>
-        {phase.dateFin === null ? (
-          <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-            Phase active
-          </span>
-        ) : (
-          <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
-            Phase terminée
-          </span>
-        )}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">
+            Notation du dossier {phase.dossier.numeroDossier}
+          </h1>
+          <p className="text-gray-600 mt-1">{phase.description}</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          {phase.dateFin === null ? (
+            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+              Phase active
+            </span>
+          ) : (
+            <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+              Phase terminée
+            </span>
+          )}
+          <button 
+            onClick={fetchPhaseDetails}
+            className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-md text-sm hover:bg-indigo-200"
+          >
+            Actualiser
+          </button>
+        </div>
       </div>
       
       {/* Détails de la phase */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="font-medium text-gray-900">Détails de la phase de vote</h3>
+          <h3 className="font-medium text-gray-900">Informations du dossier</h3>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Description</p>
-              <p className="bg-gray-50 p-3 rounded-md">{phase.description}</p>
+              <p className="text-sm text-gray-600">Type de demande</p>
+              <p className="font-medium">{phase.dossier.typeDemande?.libelle || 'Type non spécifié'}</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Type de demande</p>
-                <p className="font-medium">{phase.dossier.typeDemande?.libelle || 'Type non spécifié'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Déposant</p>
-                <p className="font-medium">{phase.dossier.nomDeposant || ''} {phase.dossier.prenomDeposant || ''}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Date de début</p>
-                <p className="font-medium">{new Date(phase.dateDebut).toLocaleDateString()}</p>
-              </div>
-              {phase.dateFin && (
-                <div>
-                  <p className="text-sm text-gray-600">Date de fin</p>
-                  <p className="font-medium">{new Date(phase.dateFin).toLocaleDateString()}</p>
-                </div>
-              )}
+            <div>
+              <p className="text-sm text-gray-600">Déposant</p>
+              <p className="font-medium">{phase.dossier.nomDeposant || ''} {phase.dossier.prenomDeposant || ''}</p>
             </div>
+            <div>
+              <p className="text-sm text-gray-600">Date de création</p>
+              <p className="font-medium">
+                {phase.dossier.dateCreation ? new Date(phase.dossier.dateCreation).toLocaleDateString() : 'Non spécifiée'}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div>
+              <p className="text-sm text-gray-600">Date de début de notation</p>
+              <p className="font-medium">{new Date(phase.dateDebut).toLocaleDateString()}</p>
+            </div>
+            {phase.dateFin && (
+              <div>
+                <p className="text-sm text-gray-600">Date de fin de notation</p>
+                <p className="font-medium">{new Date(phase.dateFin).toLocaleDateString()}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
       
-      {/* Résultats de vote */}
+      {/* Résultats de notation */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="font-medium text-gray-900">Résultats du vote</h3>
+          <h3 className="font-medium text-gray-900">Résultats de la notation</h3>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          {/* Statistiques globales */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-blue-50 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {moyenne ? moyenne.toFixed(1) : '0.0'}
+              </div>
+              <div className="text-sm text-gray-600">Moyenne</div>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-gray-600">{votes.length}</div>
+              <div className="text-sm text-gray-600">Notes</div>
+            </div>
             <div className="bg-green-50 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-green-600">{voteResults.FAVORABLE}</div>
-              <div className="text-sm text-gray-600">Favorable</div>
+              <div className="text-2xl font-bold text-green-600">{stats.max || 0}</div>
+              <div className="text-sm text-gray-600">Note max</div>
             </div>
             <div className="bg-red-50 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-red-600">{voteResults.DEFAVORABLE}</div>
-              <div className="text-sm text-gray-600">Défavorable</div>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-yellow-600">{voteResults.COMPLEMENT_REQUIS}</div>
-              <div className="text-sm text-gray-600">Complément requis</div>
+              <div className="text-2xl font-bold text-red-600">{stats.min || 0}</div>
+              <div className="text-sm text-gray-600">Note min</div>
             </div>
           </div>
+
+          {/* Distribution des notes */}
+          {votes.length > 0 && (
+            <div className="mb-6">
+              <h4 className="font-medium text-gray-900 mb-3">Distribution des notes</h4>
+              <div className="grid grid-cols-4 gap-2">
+                {stats.distribution.map((tranche, index) => {
+                  const percentage = votes.length > 0 ? (tranche.count / votes.length) * 100 : 0;
+                  return (
+                    <div key={index} className="text-center">
+                      <div className="bg-gray-200 h-4 rounded-full overflow-hidden mb-1">
+                        <div 
+                          className={`h-full ${tranche.color} transition-all duration-300`}
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-600">{tranche.label}</div>
+                      <div className="text-sm font-medium">{tranche.count}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           
-          {/* Bouton pour voter ou modifier mon vote */}
+          {/* Bouton pour noter ou modifier ma note */}
           {phase.dateFin === null && (
             <div className="flex justify-center mb-6">
               <button
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 onClick={() => {
                   if (myVote) {
-                    setVotingDecision(myVote.decision);
+                    setVotingNote(myVote.note);
                     setVotingComment(myVote.commentaire || '');
+                  } else {
+                    setVotingNote(15);
+                    setVotingComment('');
                   }
                   setShowVoteModal(true);
                 }}
               >
-                {myVote ? 'Modifier mon vote' : 'Voter'}
+                {myVote ? 'Modifier ma note' : 'Noter ce dossier'}
               </button>
             </div>
           )}
           
-          {/* Si j'ai déjà voté, montrer mon vote */}
+          {/* Si j'ai déjà noté, montrer ma note */}
           {myVote && (
             <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="font-medium text-indigo-900">Mon vote</h4>
-                <DecisionBadge decision={myVote.decision} />
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-medium text-indigo-900">Ma note</h4>
+                <div className="flex items-center space-x-2">
+                  <NoteBadge note={myVote.note} />
+                  {phase.dateFin === null && (
+                    <button 
+                      className="text-indigo-600 hover:text-indigo-800 text-sm"
+                      onClick={() => {
+                        setVotingNote(myVote.note);
+                        setVotingComment(myVote.commentaire || '');
+                        setShowVoteModal(true);
+                      }}
+                    >
+                      Modifier
+                    </button>
+                  )}
+                </div>
               </div>
               {myVote.commentaire && (
-                <p className="text-sm text-gray-700">{myVote.commentaire}</p>
+                <p className="text-sm text-gray-700 mb-2">{myVote.commentaire}</p>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                Voté le {new Date(myVote.dateCreation).toLocaleDateString()} à {new Date(myVote.dateCreation).toLocaleTimeString()}
+              <p className="text-xs text-gray-500">
+                Noté le {new Date(myVote.dateCreation).toLocaleDateString()} à {new Date(myVote.dateCreation).toLocaleTimeString()}
               </p>
             </div>
           )}
           
-          {/* Liste des votes */}
-          <h4 className="font-medium text-gray-900 mb-2">Tous les votes ({votes.length})</h4>
-          {votes.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">Aucun vote pour le moment</p>
-          ) : (
-            <div className="space-y-4">
-              {votes.map(vote => (
-  <div key={vote.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-    <div className="flex justify-between items-center mb-2">
-      <div>
-        {/* Utilisation de l'opérateur de chaînage optionnel pour éviter l'erreur */}
-        <span className="font-medium">
-          {vote.utilisateur?.prenom || ''} {vote.utilisateur?.nom || 'Utilisateur inconnu'}
-        </span>
-        <span className="text-xs text-gray-500 ml-2">
-          ({vote.utilisateur?.role || 'Rôle inconnu'})
-        </span>
-      </div>
-      <DecisionBadge decision={vote.decision} />
-    </div>
-    {vote.commentaire && (
-      <p className="text-sm text-gray-700">{vote.commentaire}</p>
-    )}
-    <p className="text-xs text-gray-500 mt-1">
-      Voté le {new Date(vote.dateCreation).toLocaleDateString()} à {new Date(vote.dateCreation).toLocaleTimeString()}
-    </p>
-  </div>
-))}
-            </div>
-          )}
+          {/* Liste des notes */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-gray-900">
+              Toutes les notes ({votes.length})
+            </h4>
+            
+            {votes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="mt-2">Aucune note pour le moment</p>
+                {phase.dateFin === null && (
+                  <p className="text-sm text-gray-400">Soyez le premier à noter ce dossier</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {votes.map(vote => (
+                  <div key={vote.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className="font-medium text-gray-900">
+                            {formatUserName(vote.utilisateur)}
+                          </span>
+                          <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                            {vote.utilisateur?.role || 'Rôle inconnu'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Noté le {new Date(vote.dateCreation).toLocaleDateString()} à {new Date(vote.dateCreation).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <NoteBadge note={vote.note} />
+                    </div>
+                    {vote.commentaire && (
+                      <p className="text-sm text-gray-700 mt-2 bg-white p-2 rounded border-l-4 border-gray-300">
+                        {vote.commentaire}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       
@@ -623,56 +802,44 @@ const handleDecisionDossier = async (decision) => {
             <h3 className="text-2xl font-bold mb-2">
               Dossier {phase.dossier.statut === 'APPROUVE' ? 'Approuvé' : 'Rejeté'}
             </h3>
-            <p className="text-lg">
+            <p className="text-lg mb-2">
               Ce dossier a été {phase.dossier.statut === 'APPROUVE' ? 'approuvé' : 'rejeté'} définitivement.
             </p>
-            <p className="text-sm mt-2 opacity-75">
-              Le processus de vote est terminé.
+            <p className="text-sm opacity-75">
+              Moyenne finale : {moyenne ? moyenne.toFixed(1) : '0.0'}/20
             </p>
           </div>
         </div>
       )}
 
       {/* Boutons d'action */}
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg">
         <button 
           onClick={() => window.history.back()}
-          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
         >
-          Retour
+          ← Retour
         </button>
         
-        <div className="space-x-3">
+        <div className="flex items-center space-x-3">
           {phase.dateFin === null ? (
             // Boutons pour phase active
             <>
               <button 
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                onClick={fetchPhaseDetails}
-              >
-                Actualiser
-              </button>
-              <button 
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
                 onClick={handleTerminerPhase}
               >
-                Terminer la phase de vote
-              </button>
-              <button 
-                onClick={() => window.open(`/coordinateur/dossiers/${phase.dossier.id}`, '_blank')}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                Voir le dossier complet
+                Terminer la notation
               </button>
             </>
           ) : (
             // Boutons pour phase terminée
             <>
-              {/* N'afficher les boutons d'approbation/rejet QUE si le dossier n'est pas déjà traité */}
               {phase.dossier?.statut !== 'APPROUVE' && phase.dossier?.statut !== 'REJETE' ? (
+                // Boutons d'approbation/rejet
                 <>
                   <button 
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
                     onClick={() => {
                       setConfirmationAction('approuver');
                       setShowConfirmationModal(true);
@@ -681,7 +848,7 @@ const handleDecisionDossier = async (decision) => {
                     Approuver le dossier
                   </button>
                   <button 
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
                     onClick={() => {
                       setConfirmationAction('rejeter');
                       setShowConfirmationModal(true);
@@ -691,191 +858,141 @@ const handleDecisionDossier = async (decision) => {
                   </button>
                 </>
               ) : (
-                // Si le dossier est déjà traité, afficher des boutons de navigation
+                // Boutons de navigation si déjà traité
                 <>
                   <button 
-                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
                     onClick={() => router.push('/coordinateur/dossiers')}
                   >
                     Voir tous les dossiers
                   </button>
                   <button 
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     onClick={() => router.push('/coordinateur/votes')}
                   >
-                    Voir tous les votes
+                    Voir toutes les notations
                   </button>
                 </>
               )}
-              
-              <button 
-                onClick={() => window.open(`/coordinateur/dossiers/${phase.dossier.id}`, '_blank')}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                Voir le dossier complet
-              </button>
             </>
           )}
+          
+          <button 
+            onClick={() => window.open(`/coordinateur/dossiers/${phase.dossier.id}`, '_blank')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            Voir le dossier complet
+          </button>
         </div>
       </div>
       
-      {/* Modal pour voter */}
+      {/* Modal pour noter */}
       {showVoteModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-lg w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
-                {myVote ? 'Modifier mon vote' : 'Voter'}
+                {myVote ? 'Modifier ma note' : 'Noter le dossier'}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Dossier {phase.dossier.numeroDossier}
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Votre note
+                </label>
+                <NoteSlider value={votingNote} onChange={setVotingNote} />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Commentaire (facultatif)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  rows="3"
+                  placeholder="Justifiez votre notation..."
+                  value={votingComment}
+                  onChange={(e) => setVotingComment(e.target.value)}
+                ></textarea>
+                <p className="text-xs text-gray-500 mt-1">
+                  Un commentaire aide les autres membres à comprendre votre évaluation.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button 
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  onClick={() => {
+                    setShowVoteModal(false);
+                    setVotingComment('');
+                  }}
+                >
+                  Annuler
+                </button>
+                <button 
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  onClick={handleSubmitVote}
+                >
+                  {myVote ? 'Modifier ma note' : 'Enregistrer ma note'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal de confirmation pour approbation/rejet */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">
+                {confirmationAction === 'approuver' ? 'Approuver le dossier' : 'Rejeter le dossier'}
               </h3>
             </div>
             <div className="p-6">
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Votre décision</label>
-                <div className="grid grid-cols-3 gap-3">
-                  <button 
-                    className={`p-3 rounded-md ${votingDecision === 'FAVORABLE' ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border border-gray-300'}`}
-                    onClick={() => setVotingDecision('FAVORABLE')}
-                  >
-                    <div className="text-center text-sm font-medium mb-1">Favorable</div>
-                    <div className="text-center text-green-500">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  </button>
-                  <button 
-                    className={`p-3 rounded-md ${votingDecision === 'DEFAVORABLE' ? 'bg-red-100 border-2 border-red-500' : 'bg-gray-100 border border-gray-300'}`}
-                    onClick={() => setVotingDecision('DEFAVORABLE')}
-                  >
-                    <div className="text-center text-sm font-medium mb-1">Défavorable</div>
-                    <div className="text-center text-red-500">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                     </svg>
-                   </div>
-                 </button>
-                 <button 
-                   className={`p-3 rounded-md ${votingDecision === 'COMPLEMENT_REQUIS' ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-100 border border-gray-300'}`}
-                   onClick={() => setVotingDecision('COMPLEMENT_REQUIS')}
-                 >
-                   <div className="text-center text-sm font-medium mb-1">Complément</div>
-                   <div className="text-center text-yellow-500">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                     </svg>
-                   </div>
-                 </button>
-               </div>
-             </div>
-             <div className="mb-4">
-               <label className="block text-sm font-medium text-gray-700 mb-2">Commentaire (facultatif)</label>
-               <textarea
-                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                 rows="3"
-                 placeholder="Justifiez votre décision..."
-                 value={votingComment}
-                 onChange={(e) => setVotingComment(e.target.value)}
-               ></textarea>
-             </div>
-             <div className="flex justify-end space-x-3">
-               <button 
-                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                 onClick={() => setShowVoteModal(false)}
-               >
-                 Annuler
-               </button>
-               <button 
-                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                 onClick={handleSubmitVote}
-               >
-                 {myVote ? 'Modifier mon vote' : 'Voter'}
-               </button>
-             </div>
-           </div>
-         </div>
-       </div>
-     )}
-     
-     {/* Modal de confirmation pour approbation/rejet */}
-     {showConfirmationModal && (
-       <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-         <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
-           <div className="px-6 py-4 border-b border-gray-200">
-             <h3 className="text-lg font-medium text-gray-900">
-               {confirmationAction === 'approuver' ? 'Approuver le dossier' : 'Rejeter le dossier'}
-             </h3>
-           </div>
-           <div className="p-6">
-             <p className="mb-4 text-gray-600">
-               Vous avez rencontré une erreur de permissions en essayant de {confirmationAction} le dossier. Voici l'explication exacte basée sur le code de l'application:
-             </p>
-             
-             <ol className="list-decimal pl-5 mb-4 space-y-2 text-sm text-gray-600">
-               <li>
-                 <strong>Vérification du rôle:</strong> Dans la méthode <code>canChangeStatut()</code>, seul un utilisateur ayant le rôle COORDINATEUR peut changer un dossier de EN_COURS à APPROUVE/REJETE.
-               </li>
-               <li>
-                 <strong>Vérification du statut:</strong> Le dossier doit être exactement dans l'état EN_COURS pour pouvoir passer à APPROUVE/REJETE. Vérifiez que la phase de vote n'a pas modifié ce statut.
-               </li>
-               <li>
-                 <strong>Code source:</strong> <pre className="bg-gray-100 p-1 rounded text-xs overflow-auto">
-                   if (user.getRole() == Role.COORDINATEUR) {'{'}
-                     if (dossier.getStatut() == StatutDossier.EN_COURS && 
-                         (nouveauStatut == StatutDossier.APPROUVE || 
-                          nouveauStatut == StatutDossier.REJETE)) {'{'}
-                       return true;
-                     {'}'}
-                   {'}'}
-                 </pre>
-               </li>
-             </ol>
-             
-             <div className="bg-yellow-50 p-3 rounded border border-yellow-200 mb-4">
-               <p className="text-sm text-yellow-800">
-                 <strong>Solution 1:</strong> Vérifiez que votre utilisateur est bien un COORDINATEUR.<br/>
-                 <strong>Solution 2:</strong> Vérifiez que le dossier est bien en statut EN_COURS (il pourrait avoir changé lors de la phase de vote).<br/>
-                 <strong>Solution 3:</strong> Pour le développement frontend, vous pouvez utiliser le mode simulation.
-               </p>
-             </div>
-             
-             <div className="flex justify-end space-x-3">
-               <button 
-                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                 onClick={() => setShowConfirmationModal(false)}
-               >
-                 Annuler
-               </button>
-               <button 
-                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                 onClick={() => {
-                   // Fermer le modal
-                   setShowConfirmationModal(false);
-                   
-                   // Retourner à la liste des dossiers
-                   router.push('/coordinateur/dossiers');
-                 }}
-               >
-                 Retour à la liste
-               </button>
-               <button 
-                 className={`px-4 py-2 ${confirmationAction === 'approuver' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded-md`}
-                 onClick={() => {
-                   // Fermer le modal
-                   setShowConfirmationModal(false);
-                   
-                   // Appeler la fonction avec la gestion d'erreur
-                   handleDecisionDossier(confirmationAction);
-                 }}
-               >
-                 Simuler
-               </button>
-             </div>
-           </div>
-         </div>
-       </div>
-     )}
-   </div>
- );
+                <p className="text-gray-600 mb-2">
+                  <strong>Moyenne obtenue :</strong> {moyenne ? moyenne.toFixed(1) : '0.0'}/20
+                </p>
+                <p className="text-gray-600 mb-2">
+                  <strong>Nombre de notes :</strong> {votes.length}
+                </p>
+              </div>
+              
+              <p className="text-gray-600 mb-4">
+                Êtes-vous sûr de vouloir {confirmationAction === 'approuver' ? 'approuver' : 'rejeter'} ce dossier ?
+                Cette action est définitive et mettra fin au processus d'évaluation.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button 
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  onClick={() => setShowConfirmationModal(false)}
+                >
+                  Annuler
+                </button>
+                <button 
+                  className={`px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 ${
+                    confirmationAction === 'approuver' 
+                      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' 
+                      : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+                  }`}
+                  onClick={() => {
+                    setShowConfirmationModal(false);
+                    handleDecisionDossier(confirmationAction);
+                  }}
+                >
+                  {confirmationAction === 'approuver' ? 'Approuver définitivement' : 'Rejeter définitivement'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default VoteDetails;

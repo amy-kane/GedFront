@@ -14,7 +14,8 @@ const MembreComiteDashboard = () => {
   const [newComment, setNewComment] = useState('');
   const [monVote, setMonVote] = useState(null);
   const [showVoteModal, setShowVoteModal] = useState(false);
-  const [decision, setDecision] = useState('FAVORABLE');
+  // ✅ CHANGEMENT : Remplacer decision par note
+  const [note, setNote] = useState(15);
   const [commentaireVote, setCommentaireVote] = useState('');
   const [stats, setStats] = useState({
     enCours: 0
@@ -278,45 +279,52 @@ const MembreComiteDashboard = () => {
     }
   };
 
+  // ✅ CHANGEMENT : Adapter submitVote pour le système de notation
   const submitVote = async () => {
     try {
       if (!activePhase) {
-        alert("Aucune phase active pour voter");
+        alert("Aucune phase active pour noter");
+        return;
+      }
+      
+      // Validation de la note
+      if (note < 0 || note > 20) {
+        alert("La note doit être comprise entre 0 et 20");
         return;
       }
       
       const token = localStorage.getItem('token');
       
       if (monVote) {
-        // Modifier un vote existant
+        // Modifier une note existante
         await axios.put(`/api/votes/${monVote.id}`, null, {
           params: {
-            decision,
+            note,
             commentaire: commentaireVote
           },
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        alert("Vote modifié avec succès");
+        alert("Note modifiée avec succès");
       } else {
-        // Créer un nouveau vote
+        // Créer une nouvelle note
         await axios.post(`/api/votes`, null, {
           params: {
             phaseId: activePhase.id,
-            decision,
+            note,
             commentaire: commentaireVote
           },
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        alert("Vote enregistré avec succès");
+        alert("Note enregistrée avec succès");
       }
       
       // Fermer le modal et rafraîchir les données
       setShowVoteModal(false);
       setCommentaireVote('');
       
-      // Récupérer le vote mis à jour
+      // Récupérer la note mise à jour
       if (activePhase.type === 'VOTE') {
         try {
           const monVoteResponse = await axios.get(`/api/votes/phase/${activePhase.id}/mon-vote`, {
@@ -325,13 +333,73 @@ const MembreComiteDashboard = () => {
           
           setMonVote(monVoteResponse.data);
         } catch (error) {
-          console.error("Erreur lors de la récupération du vote:", error);
+          console.error("Erreur lors de la récupération de la note:", error);
         }
       }
     } catch (error) {
-      console.error("Erreur lors de l'envoi du vote:", error);
-      alert("Erreur lors de l'envoi du vote: " + (error.response?.data?.message || error.message));
+      console.error("Erreur lors de l'envoi de la note:", error);
+      alert("Erreur lors de l'envoi de la note: " + (error.response?.data?.message || error.message));
     }
+  };
+
+  // ✅ CHANGEMENT : Composant pour afficher le badge de note (remplace DecisionBadge)
+  const NoteBadge = ({ note }) => {
+    let bgColor = 'bg-red-100 text-red-800';
+    let level = 'Insuffisant';
+    
+    if (note >= 16) {
+      bgColor = 'bg-green-100 text-green-800';
+      level = 'Excellent';
+    } else if (note >= 12) {
+      bgColor = 'bg-yellow-100 text-yellow-800';
+      level = 'Bien';
+    } else if (note >= 8) {
+      bgColor = 'bg-orange-100 text-orange-800';
+      level = 'Passable';
+    }
+    
+    return (
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${bgColor}`}>
+        {note}/20 ({level})
+      </span>
+    );
+  };
+
+  // ✅ CHANGEMENT : Curseur pour sélectionner une note (remplace les boutons de décision)
+  const NoteSlider = ({ value, onChange }) => {
+    return (
+      <div className="w-full">
+        <div className="flex justify-between text-sm text-gray-600 mb-2">
+          <span>0</span>
+          <span className="font-medium text-lg text-indigo-600">{value}/20</span>
+          <span>20</span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="20"
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          style={{
+            background: `linear-gradient(to right, 
+              #ef4444 0%, #ef4444 25%, 
+              #f59e0b 25%, #f59e0b 50%, 
+              #eab308 50%, #eab308 75%, 
+              #10b981 75%, #10b981 100%)`
+          }}
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-2">
+          <span className="text-red-600">Insuffisant</span>
+          <span className="text-orange-600">Passable</span>
+          <span className="text-yellow-600">Bien</span>
+          <span className="text-green-600">Excellent</span>
+        </div>
+        <div className="mt-2 text-center">
+          <NoteBadge note={value} />
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -486,23 +554,23 @@ const MembreComiteDashboard = () => {
             </nav>
           </div>
           
-          {/* Phase active */}
+          {/* ✅ CHANGEMENT : Phase active adaptée pour la notation */}
           {activePhase && (
             <div className="mb-6 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
               <div className="flex justify-between items-center mb-2">
                 <h4 className="text-md font-semibold text-gray-900">
-                  Phase active : {activePhase.type === 'DISCUSSION' ? 'Discussion' : 'Vote'}
+                  Phase active : {activePhase.type === 'DISCUSSION' ? 'Discussion' : 'Notation'}
                 </h4>
                 {activePhase.type === 'VOTE' && (
                   <button 
                     className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700"
                     onClick={() => {
-                      setDecision(monVote?.decision || 'FAVORABLE');
+                      setNote(monVote?.note || 15);
                       setCommentaireVote(monVote?.commentaire || '');
                       setShowVoteModal(true);
                     }}
                   >
-                    {monVote ? 'Modifier mon vote' : 'Voter'}
+                    {monVote ? 'Modifier ma note' : 'Noter'}
                   </button>
                 )}
               </div>
@@ -511,14 +579,16 @@ const MembreComiteDashboard = () => {
                 Démarrée le {new Date(activePhase.dateDebut).toLocaleDateString('fr-FR')} à {new Date(activePhase.dateDebut).toLocaleTimeString()}
               </p>
               
-              {/* Afficher mon vote si disponible */}
+              {/* ✅ CHANGEMENT : Afficher ma note si disponible */}
               {monVote && (
                 <div className="mt-4 p-3 bg-white rounded border border-gray-200">
-                  <h5 className="text-sm font-medium mb-2">Mon vote</h5>
-                  <div className="flex items-center space-x-2">
-                    <DecisionBadge decision={monVote.decision} />
-                    <span className="text-sm text-gray-600">{monVote.commentaire}</span>
+                  <h5 className="text-sm font-medium mb-2">Ma note</h5>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <NoteBadge note={monVote.note} />
                   </div>
+                  {monVote.commentaire && (
+                    <p className="text-sm text-gray-600">{monVote.commentaire}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -579,56 +649,43 @@ const MembreComiteDashboard = () => {
         </div>
       )}
       
-      {/* Modal pour voter */}
+      {/* ✅ CHANGEMENT : Modal pour noter (remplace le modal de vote) */}
       {showVoteModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-md w-full">
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-lg w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
-                {monVote ? 'Modifier mon vote' : 'Voter'}
+                {monVote ? 'Modifier ma note' : 'Noter le dossier'}
               </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Dossier {selectedDossier?.numeroDossier}
+              </p>
             </div>
             <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Votre décision</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button 
-                    className={`p-2 rounded-md ${decision === 'FAVORABLE' ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border border-gray-300'}`}
-                    onClick={() => setDecision('FAVORABLE')}
-                  >
-                    <span className="block text-center text-sm font-medium mb-1">Favorable</span>
-                    <CheckIcon className="h-5 w-5 mx-auto text-green-500" />
-                  </button>
-                  <button 
-                    className={`p-2 rounded-md ${decision === 'DEFAVORABLE' ? 'bg-red-100 border-2 border-red-500' : 'bg-gray-100 border border-gray-300'}`}
-                    onClick={() => setDecision('DEFAVORABLE')}
-                  >
-                    <span className="block text-center text-sm font-medium mb-1">Défavorable</span>
-                    <XIcon className="h-5 w-5 mx-auto text-red-500" />
-                  </button>
-                  <button 
-                    className={`p-2 rounded-md ${decision === 'COMPLEMENT_REQUIS' ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-100 border border-gray-300'}`}
-                    onClick={() => setDecision('COMPLEMENT_REQUIS')}
-                  >
-                    <span className="block text-center text-sm font-medium mb-1">Complément</span>
-                    <InfoIcon className="h-5 w-5 mx-auto text-yellow-500" />
-                  </button>
-                </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Votre note</label>
+                <NoteSlider value={note} onChange={setNote} />
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Commentaire (facultatif)</label>
                 <textarea
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   rows="3"
-                  placeholder="Justifiez votre décision..."
+                  placeholder="Justifiez votre notation..."
                   value={commentaireVote}
                   onChange={(e) => setCommentaireVote(e.target.value)}
                 ></textarea>
+                <p className="text-xs text-gray-500 mt-1">
+                  Un commentaire aide les autres membres à comprendre votre évaluation.
+                </p>
               </div>
               <div className="flex justify-end space-x-3">
                 <button 
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  onClick={() => setShowVoteModal(false)}
+                  onClick={() => {
+                    setShowVoteModal(false);
+                    setCommentaireVote('');
+                  }}
                 >
                   Annuler
                 </button>
@@ -636,7 +693,7 @@ const MembreComiteDashboard = () => {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
                   onClick={submitVote}
                 >
-                  {monVote ? 'Modifier' : 'Voter'}
+                  {monVote ? 'Modifier ma note' : 'Enregistrer ma note'}
                 </button>
               </div>
             </div>
@@ -645,32 +702,6 @@ const MembreComiteDashboard = () => {
       )}
     </div>
   );
-};
-
-// Composant pour afficher le badge de décision
-const DecisionBadge = ({ decision }) => {
-  switch (decision) {
-    case 'FAVORABLE':
-      return (
-        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-          Favorable
-        </span>
-      );
-    case 'DEFAVORABLE':
-      return (
-        <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-          Défavorable
-        </span>
-      );
-    case 'COMPLEMENT_REQUIS':
-      return (
-        <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-          Complément requis
-        </span>
-      );
-    default:
-      return null;
-  }
 };
 
 // Composants graphiques
@@ -754,21 +785,9 @@ const EyeIcon = () => (
   </svg>
 );
 
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-  </svg>
-);
-
 const XIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-  </svg>
-);
-
-const InfoIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
   </svg>
 );
 

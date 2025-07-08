@@ -18,23 +18,32 @@ export async function PUT(request, { params }) {
     
     // Extraire les paramètres de la requête
     const url = new URL(request.url);
-    const decision = url.searchParams.get('decision');
+    const note = url.searchParams.get('note');
     const commentaire = url.searchParams.get('commentaire');
     
-    if (!decision) {
+    if (note === null || note === undefined) {
       return NextResponse.json(
-        { message: 'Décision requise' },
+        { message: 'Note requise' },
         { status: 400 }
       );
     }
     
-    console.log(`Modification du vote ${voteId}: ${decision}`);
+    // Valider la note (0-20)
+    const noteInt = parseInt(note);
+    if (isNaN(noteInt) || noteInt < 0 || noteInt > 20) {
+      return NextResponse.json(
+        { message: 'La note doit être un nombre entre 0 et 20' },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`Modification de la note ${voteId}: ${noteInt}/20`);
     
     // Appeler l'API backend
     try {
       const response = await axios.put(`${API_URL}/api/votes/${voteId}`, null, {
         params: {
-          decision: decision,
+          note: noteInt,
           commentaire: commentaire
         },
         headers: { 'Authorization': authHeader }
@@ -42,15 +51,15 @@ export async function PUT(request, { params }) {
       
       return NextResponse.json(response.data);
     } catch (apiError) {
-      console.error("Erreur API lors de la modification du vote:", apiError);
+      console.error("Erreur API lors de la modification de la note:", apiError);
       
       // En développement, retourner des données simulées
       if (process.env.NODE_ENV === 'development') {
         return NextResponse.json({
           id: parseInt(voteId),
-          decision: decision,
+          note: noteInt,
           commentaire: commentaire,
-          dateCreation: new Date().toISOString(),
+          dateCreation: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
           dateModification: new Date().toISOString(),
           utilisateur: {
             id: 1,
@@ -62,15 +71,15 @@ export async function PUT(request, { params }) {
       }
       
       return NextResponse.json(
-        { message: apiError.response?.data?.message || 'Erreur lors de la modification du vote' },
+        { message: apiError.response?.data?.message || 'Erreur lors de la modification de la note' },
         { status: apiError.response?.status || 500 }
       );
     }
   } catch (error) {
-    console.error("Erreur lors de la modification du vote:", error);
+    console.error("Erreur lors de la modification de la note:", error);
     
     return NextResponse.json(
-      { message: 'Erreur lors de la modification du vote' },
+      { message: 'Erreur lors de la modification de la note' },
       { status: 500 }
     );
   }

@@ -30,8 +30,8 @@ const CoordinateurLayout = ({ children }) => {
   };
 
   const navigateToPhases = () => {
-    console.log("Navigation vers phases");
-    router.push('/coordinateur/phases');
+    console.log("Navigation vers excellence");
+    router.push('/coordinateur/excellence');
   };
 
   const navigateToVotes = () => {
@@ -112,7 +112,7 @@ const CoordinateurLayout = ({ children }) => {
               {/* Page Title - Dynamique selon la route */}
               <h2 className="text-lg font-semibold text-gray-700">
                 {pathname?.includes('/dashboard') && 'Accueil'}
-                {pathname?.includes('/phases') && 'Gestion des phases'}
+                {pathname?.includes('/excellence') && 'Gestion des excellence'}
                 {pathname?.includes('/discussions') && 'Discussions'}
                 {pathname?.includes('/votes') && 'Gestion des votes'}
                 {pathname?.includes('/notifications') && 'Notifications'}
@@ -198,8 +198,8 @@ const CoordinateurLayout = ({ children }) => {
               />
               <NavItem 
                 icon={<PhasesIcon />} 
-                text="Phases" 
-                active={isActive('/coordinateur/phases')}
+                text="excellence" 
+                active={isActive('/coordinateur/excellence')}
                 onClick={navigateToPhases}
                 collapsed={sidebarCollapsed}
               />

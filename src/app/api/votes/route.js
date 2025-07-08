@@ -17,24 +17,33 @@ export async function POST(request) {
     // Extraire les paramètres de la requête
     const url = new URL(request.url);
     const phaseId = url.searchParams.get('phaseId');
-    const decision = url.searchParams.get('decision');
+    const note = url.searchParams.get('note');
     const commentaire = url.searchParams.get('commentaire');
     
-    if (!phaseId || !decision) {
+    if (!phaseId || note === null || note === undefined) {
       return NextResponse.json(
-        { message: 'ID de phase et décision requis' },
+        { message: 'ID de phase et note requis' },
         { status: 400 }
       );
     }
     
-    console.log(`Ajout d'un vote pour la phase ${phaseId}: ${decision}`);
+    // Valider la note (0-20)
+    const noteInt = parseInt(note);
+    if (isNaN(noteInt) || noteInt < 0 || noteInt > 20) {
+      return NextResponse.json(
+        { message: 'La note doit être un nombre entre 0 et 20' },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`Ajout d'une note pour la phase ${phaseId}: ${noteInt}/20`);
     
     // Appeler l'API backend
     try {
       const response = await axios.post(`${API_URL}/api/votes`, null, {
         params: {
           phaseId: phaseId,
-          decision: decision,
+          note: noteInt,
           commentaire: commentaire
         },
         headers: { 'Authorization': authHeader }
@@ -42,20 +51,20 @@ export async function POST(request) {
       
       return NextResponse.json(response.data);
     } catch (apiError) {
-      console.error("Erreur API lors de l'ajout du vote:", apiError);
+      console.error("Erreur API lors de l'ajout de la note:", apiError);
       
       // En développement, retourner des données simulées
       if (process.env.NODE_ENV === 'development') {
-        return NextResponse.json(getSimulatedVote(phaseId, decision, commentaire));
+        return NextResponse.json(getSimulatedVote(phaseId, noteInt, commentaire));
       }
       
       return NextResponse.json(
-        { message: apiError.response?.data?.message || 'Erreur lors de l\'ajout du vote' },
+        { message: apiError.response?.data?.message || 'Erreur lors de l\'ajout de la note' },
         { status: apiError.response?.status || 500 }
       );
     }
   } catch (error) {
-    console.error("Erreur lors de l'ajout du vote:", error);
+    console.error("Erreur lors de l'ajout de la note:", error);
     
     // En développement, retourner des données simulées
     if (process.env.NODE_ENV === 'development') {
@@ -63,17 +72,17 @@ export async function POST(request) {
     }
     
     return NextResponse.json(
-      { message: 'Erreur lors de l\'ajout du vote' },
+      { message: 'Erreur lors de l\'ajout de la note' },
       { status: 500 }
     );
   }
 }
 
-// Fonction pour obtenir un vote simulé
-function getSimulatedVote(phaseId = 1, decision = 'FAVORABLE', commentaire = '') {
+// Fonction pour obtenir une note simulée
+function getSimulatedVote(phaseId = 1, note = 15, commentaire = '') {
   return {
     id: Date.now(),
-    decision: decision,
+    note: note,
     commentaire: commentaire,
     dateCreation: new Date().toISOString(),
     utilisateur: {
@@ -82,6 +91,7 @@ function getSimulatedVote(phaseId = 1, decision = 'FAVORABLE', commentaire = '')
       prenom: "Test",
       role: "COORDINATEUR"
     },
-    phase: { id: parseInt(phaseId) }
+    phase: { id: parseInt(phaseId) },
+    dossier: { id: 1 }
   };
 }
