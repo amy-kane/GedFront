@@ -215,12 +215,12 @@ const CommentairesSection = ({ dossierId, userRole }) => {
         </div>
         
         {/* Afficher dossierId pour debug en mode développement */}
-        {process.env.NODE_ENV === 'development' && (
+        {/* {process.env.NODE_ENV === 'development' && (
           <div className="text-xs text-gray-500 mb-2">
             ID du dossier: {dossierId || 'Non défini'}
           </div>
         )}
-        
+         */}
         {/* État de chargement */}
         {loading && (
           <div className="flex justify-center items-center py-8">

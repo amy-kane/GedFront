@@ -16,6 +16,8 @@ const CoordinateurDashboard = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredDossiers, setFilteredDossiers] = useState([]);
+  const [groupedDossiers, setGroupedDossiers] = useState({});
+  const [selectedTypedemande, setSelectedTypedemande] = useState(null);
   const [phaseDescription, setPhaseDescription] = useState('');
   const [phaseType, setPhaseType] = useState('DISCUSSION');
   const [showNewPhaseModal, setShowNewPhaseModal] = useState(false);
@@ -44,6 +46,30 @@ const CoordinateurDashboard = () => {
     console.log("=== STATS CALCULÉES ===");
     console.log("COMPLET:", completCount);
     console.log("EN_COURS:", enCoursCount);
+  };
+
+  // Fonction pour regrouper les dossiers par type de demande
+  const groupDossiersByType = (dossiers) => {
+    const grouped = dossiers.reduce((acc, dossier) => {
+      const typeKey = dossier.typeDemande?.libelle || 'Autre';
+      if (!acc[typeKey]) {
+        acc[typeKey] = [];
+      }
+      acc[typeKey].push(dossier);
+      return acc;
+    }, {});
+
+    // Trier chaque groupe par date (plus récents en premier)
+    Object.keys(grouped).forEach(type => {
+      grouped[type].sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation));
+    });
+
+    setGroupedDossiers(grouped);
+    
+    console.log("=== DOSSIERS GROUPÉS ===");
+    Object.keys(grouped).forEach(type => {
+      console.log(`${type}: ${grouped[type].length} dossier(s)`);
+    });
   };
 
   // Configurez axios pour inclure le token dans chaque requête
@@ -104,6 +130,12 @@ const CoordinateurDashboard = () => {
     }
   }, [searchTerm, dossiers]);
 
+  // Effet pour regrouper les dossiers filtrés
+  useEffect(() => {
+    groupDossiersByType(filteredDossiers);
+    calculateStats(filteredDossiers);
+  }, [filteredDossiers]);
+
   // Nouvelle fonction qui coordonne toutes les requêtes
   const fetchAllData = async () => {
     try {
@@ -163,60 +195,12 @@ const CoordinateurDashboard = () => {
       console.log("Nombre de dossiers après déduplication et filtrage:", uniqueDossiers.length);
       console.log("Dossiers filtrés:", uniqueDossiers.map(d => ({ id: d.id, numero: d.numeroDossier, statut: d.statut })));
       
-      // Mettre à jour les dossiers et calculer les stats
+      // Mettre à jour les dossiers
       setDossiers(uniqueDossiers);
       setFilteredDossiers(uniqueDossiers);
-      calculateStats(uniqueDossiers);
       setLoading(false);
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
-      setLoading(false);
-    }
-  };
-
-  // Récupérer les dossiers du coordinateur
-  const fetchDossiers = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      // Récupérer les dossiers COMPLET
-      const completResponse = await axios.get('/api/dossiers', {
-        params: { statut: 'COMPLET' },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      // Récupérer les dossiers EN_COURS
-      const enCoursResponse = await axios.get('/api/dossiers', {
-        params: { statut: 'EN_COURS' },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      // Fonction pour extraire les dossiers
-      const extractDossiers = (response) => {
-        return Array.isArray(response.data) 
-          ? response.data 
-          : (response.data.content || []);
-      };
-      
-      // Combiner les dossiers
-      const completDossiers = extractDossiers(completResponse);
-      const enCoursDossiers = extractDossiers(enCoursResponse);
-      
-      // Ajouter une propriété pour identifier visuellement les dossiers et filtrer
-      const allDossiers = [
-        ...completDossiers.map(d => ({ ...d, listType: 'COMPLET' })),
-        ...enCoursDossiers.map(d => ({ ...d, listType: 'EN_COURS' }))
-      ].filter(dossier => ['COMPLET', 'EN_COURS'].includes(dossier.statut));
-      
-      console.log("Dossiers filtrés (fetchDossiers):", allDossiers.map(d => ({ numero: d.numeroDossier, statut: d.statut })));
-      
-      setDossiers(allDossiers);
-      setFilteredDossiers(allDossiers);
-      calculateStats(allDossiers);
-      setLoading(false);
-    } catch (error) {
-      console.error("Erreur lors de la récupération des dossiers:", error);
       setLoading(false);
     }
   };
@@ -409,6 +393,44 @@ const CoordinateurDashboard = () => {
     }
   };
 
+  // Fonction pour obtenir une icône selon le type de demande
+  const getTypeDemandeIcon = (typeDemande) => {
+    switch (typeDemande) {
+      case 'Permis de construire':
+        return '🏗️';
+      case 'Autorisation d\'urbanisme':
+        return '🏛️';
+      case 'Déclaration préalable':
+        return '📋';
+      default:
+        return '📄';
+    }
+  };
+
+  // Fonction pour obtenir une couleur selon le type de demande
+  const getTypeDemandeColor = (typeDemande) => {
+    switch (typeDemande) {
+      case 'Permis de construire':
+        return 'bg-blue-50 border-blue-200 hover:bg-blue-100';
+      case 'Autorisation d\'urbanisme':
+        return 'bg-green-50 border-green-200 hover:bg-green-100';
+      case 'Déclaration préalable':
+        return 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100';
+      default:
+        return 'bg-gray-50 border-gray-200 hover:bg-gray-100';
+    }
+  };
+
+  // Filtrer les dossiers du type sélectionné
+  const dossiersTypeSelectionne = selectedTypedemande ? (groupedDossiers[selectedTypedemande] || []).filter(dossier => {
+    if (searchTerm.trim() === '') return true;
+    return (
+      dossier.numeroDossier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dossier.nomDeposant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dossier.prenomDeposant?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }) : [];
+
   return (
     <div className="p-6">
       {/* Notification */}
@@ -474,118 +496,230 @@ const CoordinateurDashboard = () => {
           color="bg-purple-50"
         />
       </div>
-      
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <input 
-            type="text" 
-            placeholder="Rechercher un dossier..." 
-            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <SearchIcon className="h-5 w-5 text-gray-400" />
+
+      {/* Navigation et Search Bar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        {/* Navigation breadcrumb */}
+        <div className="flex items-center space-x-2 text-sm">
+          <button 
+            onClick={() => {
+              setSelectedTypedemande(null);
+              setSearchTerm('');
+            }}
+            className={`px-3 py-1 rounded-md transition-colors ${
+              !selectedTypedemande 
+                ? 'bg-indigo-600 text-white' 
+                : 'text-indigo-600 hover:bg-indigo-50'
+            }`}
+          >
+            🏠 Types de demandes
+          </button>
+          {selectedTypedemande && (
+            <>
+              <span className="text-gray-400">/</span>
+              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md">
+                {getTypeDemandeIcon(selectedTypedemande)} {selectedTypedemande}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Search Bar - seulement visible quand un type est sélectionné */}
+        {selectedTypedemande && (
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Rechercher dans ces dossiers..." 
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <SearchIcon className="h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Titre principal */}
+      <h2 className="text-xl font-semibold text-gray-800 mb-4">
+        {selectedTypedemande ? `Dossiers - ${selectedTypedemande}` : 'Types de demandes'}
+      </h2>
+
+      {/* Contenu principal */}
+      {loading ? (
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+            <span className="text-lg text-gray-600">Chargement des dossiers...</span>
           </div>
         </div>
-      </div>
-      
-      {/* Titre principal */}
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Dossiers à traiter</h2>
-      
-      {/* Dossiers Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Numéro Dossier
-              </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Type de demande
-              </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Déposant
-              </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Date
-              </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Statut
-              </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-4 text-center">
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
-                    Chargement des dossiers...
-                  </div>
-                </td>
-              </tr>
-            ) : filteredDossiers.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-4 text-center">
-                  {searchTerm ? 'Aucun dossier trouvé pour cette recherche' : 'Aucun dossier à traiter'}
-                </td>
-              </tr>
-            ) : (
-              filteredDossiers.map((dossier) => (
-                <tr key={dossier.id} className={`hover:bg-gray-50 ${dossier.listType === 'EN_COURS' ? 'bg-purple-50' : ''}`}>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {dossier.numeroDossier}
-                  </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {dossier.typeDemande?.libelle || "N/A"}
-                  </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {dossier.nomDeposant} {dossier.prenomDeposant}
-                  </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(dossier.dateCreation).toLocaleDateString('fr-FR')}
-                  </td>
-                  <td className="px-3 py-4 whitespace-nowrap">
-                    <StatusBadge status={dossier.statut} />
-                  </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex space-x-2">
-                      <button 
-                        className="text-blue-600 hover:text-blue-800"
-                        onClick={() => consulterDossier(dossier.id)}
-                        title="Consulter"
-                      >
-                        <EyeIcon className="h-5 w-5" />
-                      </button>
-                      {dossier.statut === 'COMPLET' && (
-                        <button 
-                          className="text-purple-600 hover:text-purple-800"
-                          onClick={() => {
-                            setSelectedDossier(dossier);
-                            setShowNewPhaseModal(true);
-                          }}
-                          title="Initier une phase"
-                        >
-                          <PlayIcon className="h-5 w-5" />
-                        </button>
-                      )}
+      ) : !selectedTypedemande ? (
+        // Vue des types de demandes
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Object.keys(groupedDossiers)
+            .sort((a, b) => a.localeCompare(b))
+            .map(typeDemande => {
+              const dossiers = groupedDossiers[typeDemande];
+              const completCount = dossiers.filter(d => d.statut === 'COMPLET').length;
+              const enCoursCount = dossiers.filter(d => d.statut === 'EN_COURS').length;
+              
+              return (
+                <div
+                  key={typeDemande}
+                  onClick={() => setSelectedTypedemande(typeDemande)}
+                  className={`p-6 rounded-lg border-2 cursor-pointer transition-all duration-200 transform hover:scale-105 ${getTypeDemandeColor(typeDemande)}`}
+                >
+                  <div className="text-center">
+                    <div className="text-4xl mb-3">
+                      {getTypeDemandeIcon(typeDemande)}
                     </div>
-                  </td>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {typeDemande}
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-center">
+                        <span className="bg-indigo-100 text-indigo-800 text-lg font-bold px-3 py-1 rounded-full">
+                          {dossiers.length} dossier{dossiers.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="flex justify-center space-x-4 text-sm text-gray-600">
+                        {completCount > 0 && (
+                          <span className="flex items-center">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
+                            {completCount} complet{completCount > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {enCoursCount > 0 && (
+                          <span className="flex items-center">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full mr-1"></div>
+                            {enCoursCount} en cours
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          
+          {Object.keys(groupedDossiers).length === 0 && (
+            <div className="col-span-full bg-white rounded-lg shadow p-8 text-center">
+              <div className="text-gray-500 text-lg">
+                Aucun dossier à traiter
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        // Vue des dossiers du type sélectionné
+        <div>
+          {/* Info bar du type sélectionné */}
+          <div className="bg-white rounded-lg shadow p-4 mb-6 border-l-4 border-indigo-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">{getTypeDemandeIcon(selectedTypedemande)}</span>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{selectedTypedemande}</h3>
+                  <p className="text-sm text-gray-600">
+                    {dossiersTypeSelectionne.length} dossier{dossiersTypeSelectionne.length > 1 ? 's' : ''} 
+                    {searchTerm && ' correspondant à votre recherche'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedTypedemande(null);
+                  setSearchTerm('');
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                ← Retour aux types
+              </button>
+            </div>
+          </div>
+
+          {/* Tableau des dossiers */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Numéro Dossier
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Déposant
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Statut
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {dossiersTypeSelectionne.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                      {searchTerm ? 'Aucun dossier trouvé pour cette recherche' : 'Aucun dossier dans cette catégorie'}
+                    </td>
+                  </tr>
+                ) : (
+                  dossiersTypeSelectionne.map((dossier) => (
+                    <tr key={dossier.id} className={`hover:bg-gray-50 ${dossier.listType === 'EN_COURS' ? 'bg-purple-50' : ''}`}>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {dossier.numeroDossier}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {dossier.nomDeposant} {dossier.prenomDeposant}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(dossier.dateCreation).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap">
+                        <StatusBadge status={dossier.statut} />
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex space-x-2">
+                          <button 
+                            className="text-blue-600 hover:text-blue-800"
+                            onClick={() => consulterDossier(dossier.id)}
+                            title="Consulter"
+                          >
+                            <EyeIcon className="h-5 w-5" />
+                          </button>
+                          {dossier.statut === 'COMPLET' && (
+                            <button 
+                              className="text-purple-600 hover:text-purple-800"
+                              onClick={() => {
+                                setSelectedDossier(dossier);
+                                setShowNewPhaseModal(true);
+                              }}
+                              title="Initier une phase"
+                            >
+                              <PlayIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       
       {/* Section détails du dossier sélectionné */}
       {selectedDossier && (
-        <div className="bg-white rounded-lg shadow overflow-hidden p-6">
+        <div className="bg-white rounded-lg shadow overflow-hidden p-6 mt-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-2xl font-bold text-gray-900">
               Détails du dossier : {selectedDossier.numeroDossier}

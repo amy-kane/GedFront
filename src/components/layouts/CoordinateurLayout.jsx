@@ -134,9 +134,9 @@ const CoordinateurLayout = ({ children }) => {
                   <p className="text-sm font-medium text-gray-900">
                     {user ? `${user.prenom} ${user.nom}` : 'Coordinateur'}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  {/* <p className="text-xs text-gray-500">
                     {user?.email || 'coordinateur@ged.com'}
-                  </p>
+                  </p> */}
                 </div>
 
                 {/* Profile Button */}
@@ -212,7 +212,7 @@ const CoordinateurLayout = ({ children }) => {
               />
               <NavItem 
                 icon={<VoteIcon />} 
-                text="Votes" 
+                text="Notation" 
                 active={isActive('/coordinateur/votes')}
                 onClick={navigateToVotes}
                 collapsed={sidebarCollapsed}

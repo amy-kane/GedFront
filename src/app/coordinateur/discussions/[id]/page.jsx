@@ -281,13 +281,13 @@ const ensureValidData = (data) => {
       )}
       
       {/* Information de débogage en mode développement */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* {process.env.NODE_ENV === 'development' && (
         <div className="bg-gray-100 p-2 text-xs text-gray-600 mb-4 rounded">
           <p>Mode: Développement</p>
           <p>Phase ID: {phase.id}</p>
           <p>Dossier ID: {dossierId}</p>
         </div>
-      )}
+      )} */}
       
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">

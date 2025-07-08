@@ -166,9 +166,9 @@ const MembreComiteLayout = ({ children }) => {
                   <p className="text-sm font-medium text-gray-900">
                     {user ? `${user.prenom} ${user.nom}` : 'Membre du comité'}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  {/* <p className="text-xs text-gray-500">
                     {user?.email || 'membre@ged.com'}
-                  </p>
+                  </p> */}
                 </div>
 
                 {/* Profile Button */}
@@ -237,7 +237,7 @@ const MembreComiteLayout = ({ children }) => {
               />
               <NavItem 
                 icon={<VoteIcon />} 
-                text="Votes" 
+                text="Notation" 
                 active={isActive('/membre-comite/votes')}
                 onClick={navigateToVotes}
                 collapsed={sidebarCollapsed}

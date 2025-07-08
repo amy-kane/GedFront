@@ -58,7 +58,11 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
               <div className="bg-gradient-to-br from-white to-blue-50 rounded-full p-3 mr-4 shadow-lg transform hover:scale-105 transition-transform">
-                <div className="text-blue-900 font-bold text-xl">UCAD</div>
+                 <img 
+                  src="https://research4agrinnovation.org/app/uploads/2016/11/senegal_.jpg" 
+                  alt="UCAD Logo" 
+                  className="w-12 h-12 rounded-full object-cover"
+                />
               </div>
               <div>
                 <h1 className="text-2xl lg:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100">
@@ -108,7 +112,7 @@ export default function Home() {
                 </h2>
                 
                 <p className="text-xl lg:text-2xl text-blue-100 leading-relaxed font-light">
-                  Le Département Mathématiques-Informatique de l'UCAD propose des formations de qualité 
+                  La Section Informatique de l'UCAD propose des formations de qualité 
                   <span className="font-semibold text-white"> adaptées aux besoins du marché</span> et aux 
                   enjeux technologiques actuels.
                 </p>
