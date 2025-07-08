@@ -21,7 +21,7 @@ const CoordinateurDiscussionsPage = () => {
     fetchDiscussionPhases();
   }, []);
   
-  // app/coordinateur/discussions/page.jsx (méthode fetchDiscussionPhases modifiée)
+  // app/coordinateur/discussions/page.jsx (méthode fetchDiscussionPhases modifiéee)
 
 const fetchDiscussionPhases = async () => {
   try {
