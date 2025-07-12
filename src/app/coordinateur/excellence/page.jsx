@@ -562,10 +562,10 @@ const ExcellenceDashboard = () => {
       {/* En-tête */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Dashboard d'Excellence - Dossiers en cours</h1>
-          <p className="text-gray-600 mt-1">Aide à la décision pour les dossiers en cours d'évaluation</p>
+          <h1 className="text-3xl font-bold text-gray-800">Tableau de bord</h1>
+          <p className="text-gray-600 mt-1">Aide à la décision pour les dossiers évalués</p>
         </div>
-        <div className="flex space-x-3">
+        {/* <div className="flex space-x-3">
           <button
             onClick={() => {
               // Forcer l'actualisation en vidant le cache
@@ -589,7 +589,7 @@ const ExcellenceDashboard = () => {
           >
             {showStats ? 'Masquer' : 'Afficher'} Statistiques
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* Statistiques globales */}

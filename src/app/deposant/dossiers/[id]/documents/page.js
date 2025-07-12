@@ -333,11 +333,11 @@ export default function AjoutDocuments({ params }) {
       </div>
       
       {/* Affichage des informations de débogage */}
-      <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-xs">
+      {/* <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-xs">
         <p><strong>Debug:</strong> ID du dossier: {dossierId}, Chargement: {isLoading ? 'Oui' : 'Non'}</p>
         <p>Documents requis: {documentsRequis.length}, Documents ajoutés: {documentsAjoutes.length}</p>
         <p>Associations: {JSON.stringify(documentAssociations)}</p>
-      </div>
+      </div> */}
       
       {error && (
         <div className="mb-6 bg-red-50 p-4 rounded-md border-l-4 border-red-500">

@@ -20,14 +20,14 @@ const PageLayout = ({ children }) => {
                 <h1 className="text-xl font-semibold text-gray-900">Suivi de Dossier</h1>
               </div>
             </div>
-            <nav className="flex space-x-8">
+            {/* <nav className="flex space-x-8">
               <a href="/deposant/dashboard" className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium transition-colors">
                 Tableau de bord
               </a>
               <a href="/deposant/dossiers" className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium transition-colors">
                 Mes dossiers
               </a>
-            </nav>
+            </nav> */}
           </div>
         </div>
       </header>

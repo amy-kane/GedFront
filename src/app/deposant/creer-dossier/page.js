@@ -225,7 +225,7 @@ export default function CreerDossier() {
                 disabled
                 className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
               />
-              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+              {/* <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p> */}
             </div>
             
             <div>
@@ -236,7 +236,7 @@ export default function CreerDossier() {
                 disabled
                 className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
               />
-              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+              {/* <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p> */}
             </div>
             
             {/* ✅ Sexe et Âge ajoutés */}
@@ -248,7 +248,7 @@ export default function CreerDossier() {
                 disabled
                 className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
               />
-              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+              {/* <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p> */}
             </div>
             
             <div>
@@ -259,7 +259,7 @@ export default function CreerDossier() {
                 disabled
                 className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
               />
-              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+              {/* <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p> */}
             </div>
             
             {/* Email */}
@@ -271,7 +271,7 @@ export default function CreerDossier() {
                 disabled
                 className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500"
               />
-              <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p>
+              {/* <p className="mt-1 text-xs text-gray-500">Information importée de votre profil</p> */}
             </div>
             
             {/* Adresse */}
